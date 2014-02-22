@@ -25,8 +25,7 @@ subtest 'pod ok' => sub {
 
     my $pod_ok =
     ok(
-        defined $p->header
-       && defined $p->header->[0]
+       defined $p->header->[0]
        && $p->header->[0]->$_isa( 'Devel::ParseXS::Pod' ),
         'found pod'
       );
