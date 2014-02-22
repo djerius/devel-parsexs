@@ -233,6 +233,9 @@ sub parse_comment {
 						   lineno => $lineno,
 						   contents => \@comments )
 		    );
+
+	# last line wasn't a comment; put it back
+	$fh->ungetline;
         return 1;
     }
 
