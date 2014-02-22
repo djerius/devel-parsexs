@@ -71,20 +71,41 @@ use Class::Tiny {
     lastline => sub { Devel::ParseXS::Stream::Line->new },
 };
 
+# generic open
 sub open {
 
     my ( $self, $src ) = @_;
 
-    my $is_pipe = $src =~ s/\s*\|\s*$//;
+    if ( $src =~ s/\s*\|\s*$// ) {
 
-    # are we not a file?
-    push @{ $self->stack },
-      $is_pipe
-      ? Devel::ParseXS::Stream::Pipe->new( filename => $src )
-      : Devel::ParseXS::Stream::File->new( filename => $src )
-      ;
+	$self->open_pipe( $src );
 
-      return;
+    }
+
+    else {
+
+	$self->open_file( $src );
+    }
+
+    return;
+}
+
+sub open_file {
+
+    my ( $self, $src ) = @_;
+
+    push @{ $self->stack }, Devel::ParseXS::Stream::File->new( filename => $src );
+
+    return;
+}
+
+sub open_pipe {
+
+    my ( $self, $src ) = @_;
+
+    push @{ $self->stack }, Devel::ParseXS::Stream::Pipe->new( filename => $src );
+
+    return;
 }
 
 sub swap_lines {
