@@ -8,9 +8,10 @@ use Carp;
 use IO::File;
 use IO::Unread qw[ unread ];
 
-use Devel::ParseXS::Pod;
-use Devel::ParseXS::Keyword;
 use Devel::ParseXS::Boot;
+use Devel::ParseXS::Comment;
+use Devel::ParseXS::Keyword;
+use Devel::ParseXS::Pod;
 use Devel::ParseXS::Stream;
 
 our %Re = (
@@ -19,10 +20,10 @@ our %Re = (
 
     # CPP directives:
     #    ANSI:    if ifdef ifndef elif else endif define undef
-    #        line error pragma
-    #    gcc:    warning include_next
+    #             line error pragma include
+    #     gcc:    warning include_next
     #   obj-c:    import
-    #   others:    ident (gcc notes that some cpps have this one)
+    #  others:    ident (gcc notes that some cpps have this one)
     CPP =>
       qr/^#[ \t]*(?:(?:if|ifn?def|elif|else|endif|define|undef|pragma|error|warning|line\s+\d+|ident)\b|(?:include(?:_next)?|import)\s*["<].*[>"])/,
 
@@ -213,6 +214,8 @@ sub parse_comment {
 
     my $fh = $self->fh;
 
+    my $lineno = $fh->lineno;
+
   LOOP:
     {
         do {
@@ -225,7 +228,11 @@ sub parse_comment {
     }
 
     if ( @comments ) {
-        $self->stash( Devel::ParseXS::Comment->new( contents => \@comments ) );
+        $self->stash( Devel::ParseXS::Comment->new(
+						   stream => $fh->stream,
+						   lineno => $lineno,
+						   contents => \@comments )
+		    );
         return 1;
     }
 
