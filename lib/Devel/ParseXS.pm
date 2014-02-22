@@ -11,6 +11,7 @@ use IO::Unread qw[ unread ];
 use Devel::ParseXS::Pod;
 use Devel::ParseXS::Keyword;
 use Devel::ParseXS::Boot;
+use Devel::ParseXS::Stream;
 
 our %Re = (
 
@@ -41,6 +42,7 @@ our %Re = (
 use Class::Tiny
   qw[ fh module package prefix context ],
   {
+    fh => sub { Devel::ParseXS::Stream->new },
     header => [],
     body   => [],
   };
@@ -57,8 +59,7 @@ sub parse_file {
 
     my ( $self, $file ) = @_;
 
-    $self->fh( IO::File->new( $file, 'r' ) )
-      or croak( "unable to open $file\n" );
+    $self->fh->open( $file );
 
     $self->context( 'header' );
     $self->parse_header;
@@ -75,13 +76,11 @@ sub parse_header {
 
     my $header = $self->header;
 
-    my $start = $self->fh->input_line_number;
-
     my $in_pod;
     my $found_module;
 
     # read until EOF or we hit a MODULE keyword
-    while ( readline( $fh ) ) {
+    while ( $fh->readline  ) {
 
         next if $self->parse_pod;
 
@@ -91,7 +90,7 @@ sub parse_header {
 
     }
 
-    croak( $self->fh->input_line_number,
+    croak( $fh->lineno,
         "Didn't find a 'MODULE ... PACKAGE ... PREFIX' line\n" )
       unless $found_module;
 
@@ -105,7 +104,7 @@ sub parse_body {
     my $fh = $self->fh;
 
     # not in an XSUB in this code, so only parse what's legal
-    while ( readline( $fh ) ) {
+    while ( $fh->readline ) {
 
         next if /^\s*$/;
 
@@ -131,23 +130,18 @@ sub parse_xsub {
 
     chomp( my $return_type = $_ );
 
-    my $fh = $self->fh
+    my $fh = $self->fh;
 
-      my $decl = readline( $fh )
-      or
-      $self->error( $fh->input_line_number, "function definition too short\n" );
+    $fh->readline( my $decl )
+	or $self->error( $fh->lineno, "function definition too short\n" );
 
     # at this point we'd normally check for ANSI C style argument
     # types; those would normally get stuck into an INPUT section
     # for now assume non-ANSI style
 
-    while ( readline( $fh ) ) {
+    while ( $fh->readline ) {
 
 	next if $self->parse_pod;
-
-	
-
-
 
     }
 
@@ -187,18 +181,17 @@ sub parse_pod {
 
     my $fh = $self->fh;
 
-    my $line_no = $fh->input_line_number;
-
-    while ( readline( $fh ) ) {
+    my $lineno = $fh->lineno;
+    while ( $fh->readline ) {
         push @pod, $_;
         last if /^=cut\s*$/;
     }
 
-    $self->error( $line_no, "unterminated pod starting here\n" )
+    $self->error( $lineno, "unterminated pod starting here\n" )
       if !defined $_;
 
     $self->stash(
-        Devel::ParseXS::Pod->new( line_no => $line_no, contents => \@pod ) );
+        Devel::ParseXS::Pod->new( lineno => $lineno, contents => \@pod ) );
 
     return 1;
 }
@@ -209,6 +202,8 @@ sub parse_comment {
 
     my @comments;
 
+    my $fh = $self->fh;
+
   LOOP:
     {
         do {
@@ -217,7 +212,7 @@ sub parse_comment {
 
             push @comments, $_;
 
-        } while ( readline( $self->fh ) );
+        } while ( $fh->readline );
     }
 
     if ( @comments ) {
@@ -266,7 +261,7 @@ sub handle_BOOT {
 
     my @contents;
 
-    while ( readline( $fh ) ) {
+    while ( $fh->readline ) {
 
         last if /^\s*$/;
         push @contents, $_;
@@ -278,9 +273,9 @@ sub handle_BOOT {
 
 sub error {
 
-    my ( $self, $line_no ) = ( shift, shift );
+    my ( $self, $lineno ) = ( shift, shift );
 
-    croak( $self->filename, $line_no ? ( ': ', $self->fh->input_line ) : (),
+    croak( $self->fh->filename, $lineno ? ( ': ', $self->fh->lineno ) : (),
         ': ', @_ );
 }
 

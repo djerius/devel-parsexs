@@ -3,7 +3,7 @@ package Devel::ParseXS::Pod;
 use base 'Devel::ParseXS::Element';
 
 use Class::Tiny
-  qw[ filename line_no],
+  qw[ filename lineno],
   { contents => sub { [] } } ;
 
 

@@ -18,7 +18,7 @@ package Devel::ParseXS::Stream;
 
     sub DEMOLISH {
 
-	my $self = shift;
+        my $self = shift;
 
         if ( $self->fh ) {
             my $fh = $self->fh( undef );
@@ -71,6 +71,8 @@ use Class::Tiny {
     lastline => sub { Devel::ParseXS::Stream::Line->new },
 };
 
+sub stream { $_[0]->stack->[-1] }
+
 # generic open
 sub open {
 
@@ -78,13 +80,13 @@ sub open {
 
     if ( $src =~ s/\s*\|\s*$// ) {
 
-	$self->open_pipe( $src );
+        $self->open_pipe( $src );
 
     }
 
     else {
 
-	$self->open_file( $src );
+        $self->open_file( $src );
     }
 
     return;
@@ -94,7 +96,8 @@ sub open_file {
 
     my ( $self, $src ) = @_;
 
-    push @{ $self->stack }, Devel::ParseXS::Stream::File->new( filename => $src );
+    push @{ $self->stack },
+      Devel::ParseXS::Stream::File->new( filename => $src );
 
     return;
 }
@@ -103,7 +106,8 @@ sub open_pipe {
 
     my ( $self, $src ) = @_;
 
-    push @{ $self->stack }, Devel::ParseXS::Stream::Pipe->new( filename => $src );
+    push @{ $self->stack },
+      Devel::ParseXS::Stream::Pipe->new( filename => $src );
 
     return;
 }
@@ -123,7 +127,7 @@ sub readline {
 
     my $self = shift;
 
-    while ( my $stream = $self->stack->[-1] ) {
+    while ( my $stream = $self->stream ) {
 
         if ( my $contents = readline( $stream->fh ) ) {
 
@@ -134,7 +138,7 @@ sub readline {
             $self->line->lineno( $stream->fh->input_line_number );
             $self->line->stream( $stream );
 
-	    $_ = $contents;
+            ( @_ ? $_[0] : $_ ) = $contents;
             return 1;
         }
 
@@ -151,6 +155,22 @@ sub readline {
     $self->line( Devel::ParseXS::Stream::Line->new );
 
     return $_ = undef;
+}
+
+sub lineno {
+
+    defined $_[0]->line->lineno
+      ? $_[0]->line->lineno
+      : $_[0]->lastline->lineno;
+
+}
+
+sub filename {
+
+        defined $_[0]->line->stream     ? $_[0]->line->stream->filename
+      : defined $_[0]->lastline->stream ? $_[0]->lastline->stream->filename
+      :                                   undef;
+
 }
 
 1;
