@@ -31,13 +31,13 @@ sub as_string {
 
     my $self = shift;
 
-    return (
+    return {
         dollar_    => join( '',   @{ $self->dollar_ } ),
         line       => join( '',   @{ $self->line } ),
         lineno     => join( "\n", @{ $self->lineno }, '' ),
         lastline   => join( '',   @{ $self->lastline } ),
         lastlineno => join( "\n", @{ $self->lastlineno }, '' ),
-    );
+    };
 
 }
 

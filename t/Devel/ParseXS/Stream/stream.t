@@ -60,30 +60,30 @@ for my $ssrc ( [ file => \&mkfile ], [ pipe => \&mkpipe ] ) {
 
             $store->store( $s ) while defined $s->readline;
 
-            my %store = $store->as_string;
+            my $stored = $store->as_string;
 
-            is( $store{dollar_},
+            is( $stored->{dollar_},
                 ${ __PACKAGE__->section_data( 'one stream line' ) },
                 '$_ contents' );
 
             is(
-                $store{line},
+                $stored->{line},
                 ${ __PACKAGE__->section_data( 'one stream line' ) },
                 'line contents'
             );
 
-            is( $store{lineno},
+            is( $stored->{lineno},
                 ${ __PACKAGE__->section_data( 'one stream lineno' ) },
                 'line number' );
 
             is(
-                $store{lastline},
+                $stored->{lastline},
                 ${ __PACKAGE__->section_data( 'one stream lastline' ) },
                 'last line contents'
             );
 
             is(
-                $store{lastlineno},
+                $stored->{lastlineno},
                 ${ __PACKAGE__->section_data( 'one stream lastlineno' ) },
                 'last line number'
             );
@@ -123,30 +123,30 @@ for my $ssrc ( [ file => \&mkfile ], [ pipe => \&mkpipe ] ) {
 
         $store->store( $s ) while defined $s->readline;
 
-        my %store = $store->as_string;
+        my $stored = $store->as_string;
 
-        is( $store{dollar_},
+        is( $stored->{dollar_},
             ${ __PACKAGE__->section_data( 'two stream line' ) },
             '$_ contents' );
 
         is(
-            $store{line},
+            $stored->{line},
             ${ __PACKAGE__->section_data( 'two stream line' ) },
             'line contents'
         );
 
-        is( $store{lineno},
+        is( $stored->{lineno},
             ${ __PACKAGE__->section_data( 'two stream lineno' ) },
             'line number' );
 
         is(
-            $store{lastline},
+            $stored->{lastline},
             ${ __PACKAGE__->section_data( 'two stream lastline' ) },
             'last line contents'
         );
 
         is(
-            $store{lastlineno},
+            $stored->{lastlineno},
             ${ __PACKAGE__->section_data( 'two stream lastlineno' ) },
             'last line number'
         );
