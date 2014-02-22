@@ -47,11 +47,20 @@ use Class::Tiny
     body   => sub { [] },
   };
 
+
+sub BUILD {
+
+    my $self = shift;
+
+    $self->context( $self->header );
+
+}
+
 sub stash {
 
     my $self = shift;
 
-    push @{ $self->context eq 'header' ? $self->header : $self->body }, @_;
+    push @{ $self->context }, @_;
 
 }
 
@@ -61,9 +70,9 @@ sub parse_file {
 
     $self->fh->open( $file );
 
-    $self->context( 'header' );
+    $self->context(  $self->header  );
     $self->parse_header;
-    $self->context( 'body' );
+    $self->context( $self->body  );
     $self->parse_body;
 
 }
