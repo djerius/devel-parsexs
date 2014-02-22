@@ -43,8 +43,8 @@ use Class::Tiny
   qw[ fh module package prefix context ],
   {
     fh => sub { Devel::ParseXS::Stream->new },
-    header => [],
-    body   => [],
+    header => sub { [] },
+    body   => sub { [] },
   };
 
 sub stash {
