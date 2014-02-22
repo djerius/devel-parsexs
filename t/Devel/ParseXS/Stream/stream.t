@@ -14,6 +14,19 @@ use Data::Section -setup;
 use t::common qw[ datafile ];
 use MyTest::store_stream;
 
+
+sub mkpipe {
+
+    return join ' ', 'cat', datafile(  $_[0] ), '|';
+
+}
+
+sub mkfile {
+
+    return datafile( $_[0] );
+
+}
+
 subtest 'no stream' => sub {
 
     my $s = Devel::ParseXS::Stream->new;
@@ -24,115 +37,122 @@ subtest 'no stream' => sub {
 };
 
 
-subtest 'one stream' => sub {
+for my $ssrc ( [ file => \&mkfile ], [ pipe => \&mkpipe ] ) {
 
-    my $s = Devel::ParseXS::Stream->new;
+    my ( $label, $src ) = @$ssrc;
 
-    my $opened = is(
-        exception {
-            $s->open( datafile( 'file1' ) );
-        },
-        undef,
-        'open stream'
-    );
+    subtest "$label: one stream" => sub {
 
-  SKIP: {
-        skip "couldn't open file", 2 unless $opened;
+        my $s = Devel::ParseXS::Stream->new;
+
+        my $opened = is(
+            exception {
+                $s->open( $src->( 'file1' ) );
+            },
+            undef,
+            'open stream'
+        );
+
+      SKIP: {
+            skip "couldn't open file", 2 unless $opened;
+
+            my $store = MyTest::store_stream->new;
+
+            $store->store( $s ) while defined $s->readline;
+
+            my %store = $store->as_string;
+
+            is( $store{dollar_},
+                ${ __PACKAGE__->section_data( 'one stream line' ) },
+                '$_ contents' );
+
+            is(
+                $store{line},
+                ${ __PACKAGE__->section_data( 'one stream line' ) },
+                'line contents'
+            );
+
+            is( $store{lineno},
+                ${ __PACKAGE__->section_data( 'one stream lineno' ) },
+                'line number' );
+
+            is(
+                $store{lastline},
+                ${ __PACKAGE__->section_data( 'one stream lastline' ) },
+                'last line contents'
+            );
+
+            is(
+                $store{lastlineno},
+                ${ __PACKAGE__->section_data( 'one stream lastlineno' ) },
+                'last line number'
+            );
+        }
+
+    };
+
+
+    subtest "$label: two streams" => sub {
+
+        my $s = Devel::ParseXS::Stream->new;
+
+        is(
+            exception {
+                $s->open( $src->( 'file1' ) );
+            },
+            undef,
+            'open stream'
+        );
 
         my $store = MyTest::store_stream->new;
+
+        for ( 1 .. 3 ) {
+
+            $s->readline;
+            $store->store( $s )
+
+        }
+
+        is(
+            exception {
+                $s->open( $src->( 'file2' ) );
+            },
+            undef,
+            'open stream'
+        );
 
         $store->store( $s ) while defined $s->readline;
 
         my %store = $store->as_string;
 
         is( $store{dollar_},
-            ${ __PACKAGE__->section_data( 'one stream line' ) },
+            ${ __PACKAGE__->section_data( 'two stream line' ) },
             '$_ contents' );
 
         is(
             $store{line},
-            ${ __PACKAGE__->section_data( 'one stream line' ) },
+            ${ __PACKAGE__->section_data( 'two stream line' ) },
             'line contents'
         );
 
         is( $store{lineno},
-            ${ __PACKAGE__->section_data( 'one stream lineno' ) },
+            ${ __PACKAGE__->section_data( 'two stream lineno' ) },
             'line number' );
 
         is(
             $store{lastline},
-            ${ __PACKAGE__->section_data( 'one stream lastline' ) },
+            ${ __PACKAGE__->section_data( 'two stream lastline' ) },
             'last line contents'
         );
 
         is(
             $store{lastlineno},
-            ${ __PACKAGE__->section_data( 'one stream lastlineno' ) },
+            ${ __PACKAGE__->section_data( 'two stream lastlineno' ) },
             'last line number'
         );
-    }
+    };
 
-};
-
-
-subtest 'two streams' => sub {
-
-    my $s = Devel::ParseXS::Stream->new;
-
-    is(
-        exception {
-            $s->open( datafile( 'file1' ) );
-        },
-        undef,
-        'open stream'
-    );
-
-    my $store = MyTest::store_stream->new;
-
-    for ( 1 .. 3 ) {
-
-        $s->readline;
-        $store->store( $s )
-
-    }
-
-    is(
-        exception {
-            $s->open( datafile( 'file2' ) );
-        },
-        undef,
-        'open stream'
-    );
-
-    $store->store( $s ) while defined $s->readline;
-
-    my %store = $store->as_string;
-
-    is( $store{dollar_}, ${ __PACKAGE__->section_data( 'two stream line' ) },
-        '$_ contents' );
-
-    is(
-        $store{line},
-        ${ __PACKAGE__->section_data( 'two stream line' ) },
-        'line contents'
-    );
-
-    is( $store{lineno}, ${ __PACKAGE__->section_data( 'two stream lineno' ) },
-        'line number' );
-
-    is(
-        $store{lastline},
-        ${ __PACKAGE__->section_data( 'two stream lastline' ) },
-        'last line contents'
-    );
-
-    is(
-        $store{lastlineno},
-        ${ __PACKAGE__->section_data( 'two stream lastlineno' ) },
-        'last line number'
-    );
-};
-
+}
 
 done_testing;
 
