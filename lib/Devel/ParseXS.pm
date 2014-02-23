@@ -48,7 +48,7 @@ use Class::Tiny
     fh => sub { Devel::ParseXS::Stream->new },
     header => sub { [] },
     body   => sub { [] },
-    _context => sub { [] },
+    _context => sub { [ undef ] },
   };
 
 
@@ -56,7 +56,7 @@ sub BUILD {
 
     my $self = shift;
 
-    $self->push_context( $self->header );
+    $self->context( $self->header );
 
 }
 
@@ -72,21 +72,15 @@ sub pop_context {
 
 }
 
-sub swap_context {
-
-    my ( $self, $new_context ) = @_;
-
-    my $old_context =   $self->_context->[-1];
-    $self->_context->[-1] = $new_context;
-
-    return $old_context;
-}
-
-
 sub context {
 
-    $_[0]->_context->[-1];
+    my $self = shift;
 
+    my $context = $self->_context->[-1];
+
+    $self->_context->[-1] = $_[0] if @_;
+
+    return $context;
 }
 
 
@@ -127,9 +121,9 @@ sub parse_file {
 
     $self->fh->open( $file );
 
-    $self->push_context(  $self->header  );
+    $self->context(  $self->header  );
     $self->parse_header;
-    $self->swap_context( $self->body );
+    $self->context( $self->body );
     $self->parse_body;
 
 }
@@ -183,6 +177,8 @@ sub parse_body {
 
         next if $self->parse_xsub;
 
+	$self->stash_data( $_  );
+
     }
 
 }
@@ -191,48 +187,62 @@ sub parse_xsub {
 
     my $self = shift;
 
-    chomp( my $return_type = $_ );
-
     my $fh = $self->fh;
 
-    $fh->readline( my $decl )
-	or $self->error( $fh->lineno, "function definition too short\n" );
+    my $xsub = Devel::ParseXS::XSub->new( lineno => $fh->lineno );
+
+    chomp;
+    $xsub->return_type( $_ );
+
+    $fh->readline
+	or $self->error( 0, "function definition too short\n" );
+    chomp;
+    $xsub->decl( $_ );
+
+    $self->push_context( $xsub->context );
 
     # at this point we'd normally check for ANSI C style argument
     # types; those would normally get stuck into an INPUT section
     # for now assume non-ANSI style
 
+    # first section is implicitly INPUT
+    my $input = Devel::ParseXS::XSub::INPUT->new( lineno => $fh->lineno );
+    $self->stash( $input );
+    $self->push_context( $input->context );
+
     while ( $fh->readline ) {
+
+	# end on a blank line (not quite clear from the docs when an
+	# XSUB ends...)
+	last if /^\s*$/;
 
 	next if $self->parse_pod;
 
+	next if $self->parse_comment;
+
+	# not quite sure if these are allowed in an initial INPUT
+	# section...
+        next if $self->handle_keyword( $Re{GKEYWORDS} );
+
+	if ( /^($Re{XSUB_SECTION})\s*:\s*(?:#.*)?(.*)/ ) {
+
+	    my $section = Devel::ParseXS::XSub::Section->create( $1, value => $2 );
+	    $self->stash( $section );
+	    $self->context( $section->context );
+	    next;
+	}
+
+	$self->stash_data( $_  );
     }
 
+    # just in case we didn't hit another XSUB keyword, pop the INPUT context
+    $self->pop_context if $self->context == $input->context;
 
+    # pop the XSUB context
+    $self->pop_context;
+
+    return;
 }
-
-# slurp up lines until next keyword appears
-sub slurp_xsub_section {
-
-    my $self = shift;
-
-    my @contents;
-
-    my $fh = $self->fh;
-
-  LOOP: {
-
-        do {
-
-            last if /^($Re{XSUB_SECTION})\s*:\s*(?:#.*)?(.*)/;
-
-            push @contents, $_;
-
-        } while ( readline( $fh ) );
-    }
-
-}
-
 
 sub parse_pod {
 
