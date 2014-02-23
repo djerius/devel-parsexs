@@ -108,7 +108,9 @@ sub stash_data {
 
     else {
 
-        $self->stash( Devel::ParseXS::Data->new( contents => [@_] ) );
+        $self->stash( Devel::ParseXS::Data->new( lineno => $self->fh->lineno,
+						 stream => $self->fh->stream,
+						 contents => [@_] ) );
 
     }
 
@@ -206,7 +208,8 @@ sub parse_xsub {
     # for now assume non-ANSI style
 
     # first section is implicitly INPUT
-    my $input = Devel::ParseXS::XSub::INPUT->new( lineno => $fh->lineno );
+    my $input = Devel::ParseXS::XSub::INPUT->new( lineno => $fh->lineno,
+						  stream => $fh->stream );
     $self->stash( $input );
     $self->push_context( $input->context );
 

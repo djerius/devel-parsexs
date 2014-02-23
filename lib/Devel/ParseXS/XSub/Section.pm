@@ -1,10 +1,25 @@
 package Devel::ParseXS::XSub::Section;
 
+use Carp;
 
-use Class::Tiny qw[ lineno value ],
+use strict;
+use warnings;
+
+
+use Class::Tiny qw[ lineno stream value ],
     {
      context => sub { [] },
     } ;
+
+
+sub BUILD {
+
+    my $self = shift;
+
+    my @missing = grep { ! defined $self->{$_} } qw[ lineno stream ];
+
+    croak( "missing attribute(s) for object of class @{[ ref $self ]}: @missing\n" ) if @missing;
+}
 
 # use only as class method!
 sub create {
