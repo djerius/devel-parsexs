@@ -201,7 +201,10 @@ sub parse_pod {
       if !defined $_;
 
     $self->stash(
-        Devel::ParseXS::Pod->new( stream => $fh->stream, contents => \@pod ) );
+        Devel::ParseXS::Pod->new( stream => $fh->stream,
+				  lineno => $lineno,
+				  contents => \@pod )
+		);
 
     return 1;
 }
