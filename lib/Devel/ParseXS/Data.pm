@@ -2,7 +2,7 @@ package Devel::ParseXS::Data;
 
 use base 'Devel::ParseXS::Element';
 
-use Class::Tiny qw[ stream lineno ], {
+use Class::Tiny  {
     contents => sub { [] }
 };
 

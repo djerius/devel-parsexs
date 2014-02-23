@@ -1,6 +1,6 @@
 package Devel::ParseXS::Element;
 
 
-use Class::Tiny qw[ type ];
+use Class::Tiny qw[ lineno stream ];
 
 1;
