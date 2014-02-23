@@ -8,6 +8,7 @@ use Exporter 'import';
 our @EXPORT_OK = qw[
 
   datafile
+  data
 
 ];
 
@@ -57,6 +58,15 @@ sub datafile {
 	if 'ARRAY' eq ref $_[0];
 
     return catfile( @path, @_ );
+}
+
+
+sub data {
+
+    my $package = ( caller )[0];
+
+    return $package->section_data( @_ ) ;
+
 }
 
 1;
