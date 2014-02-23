@@ -21,7 +21,8 @@ package Devel::ParseXS::Stream;
         my $self = shift;
 
         if ( $self->fh ) {
-            my $fh = $self->fh( undef );
+            my $fh = $self->fh;
+	    $self->fh( undef );
             $fh->close or croak( "unable to close @{[$self->filename]}: $!\n" );
         }
     }
