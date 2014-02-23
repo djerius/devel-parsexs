@@ -1,5 +1,8 @@
 package Devel::ParseXS::Stream;
 
+use strict;
+use warnings;
+
 {
 
     package Devel::ParseXS::Stream::Line;
@@ -11,6 +14,9 @@ package Devel::ParseXS::Stream;
 {
 
     package Devel::ParseXS::Stream::Base;
+
+    use strict;
+    use warnings;
 
     use Class::Tiny qw[ fh filename path ];
 
@@ -32,6 +38,9 @@ package Devel::ParseXS::Stream;
 {
     package Devel::ParseXS::Stream::File;
 
+    use strict;
+    use warnings;
+
     use parent -norequire => 'Devel::ParseXS::Stream::Base';
 
     use Carp;
@@ -47,6 +56,9 @@ package Devel::ParseXS::Stream;
 
 {
     package Devel::ParseXS::Stream::Pipe;
+
+    use strict;
+    use warnings;
 
     use parent -norequire => 'Devel::ParseXS::Stream::Base';
 

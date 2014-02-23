@@ -1,5 +1,8 @@
 package Devel::ParseXS::XSub;
 
+use strict;
+use warnings;
+
 use base 'Devel::ParseXS::Element';
 
 use Class::Tiny qw[ decl return_type class func_name ],
