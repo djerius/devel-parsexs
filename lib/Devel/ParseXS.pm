@@ -8,8 +8,10 @@ use Carp;
 use IO::File;
 use IO::Unread qw[ unread ];
 
-use Devel::ParseXS::Boot;
+use Safe::Isa;
+
 use Devel::ParseXS::Comment;
+use Devel::ParseXS::Data;
 use Devel::ParseXS::Keyword;
 use Devel::ParseXS::Pod;
 use Devel::ParseXS::Stream;
@@ -41,11 +43,12 @@ our %Re = (
 );
 
 use Class::Tiny
-  qw[ fh module package prefix context ],
+  qw[ fh module package prefix _context ],
   {
     fh => sub { Devel::ParseXS::Stream->new },
     header => sub { [] },
     body   => sub { [] },
+    _context => sub { [] },
   };
 
 
@@ -53,16 +56,69 @@ sub BUILD {
 
     my $self = shift;
 
-    $self->context( $self->header );
+    $self->push_context( $self->header );
 
 }
+
+sub push_context {
+
+    push @{$_[0]->_context}, $_[1];
+
+}
+
+sub pop_context {
+
+    pop @{$_[0]->_context};
+
+}
+
+sub swap_context {
+
+    my ( $self, $new_context ) = @_;
+
+    my $old_context =   $self->_context->[-1];
+    $self->_context->[-1] = $new_context;
+
+    return $old_context;
+}
+
+
+sub context {
+
+    $_[0]->_context->[-1];
+
+}
+
 
 sub stash {
 
     my $self = shift;
 
-    push @{ $self->context }, @_;
+    @_ > 1 && croak( "illegal stash of more than one object\n" );
 
+    push @{ $self->context }, $_[0];
+
+}
+
+sub stash_data {
+
+    my $self = shift;
+
+    my $last_element = $self->context->[-1];
+
+    if ( $last_element->$_isa( 'Devel::ParseXS::Data' ) ) {
+
+	$last_element->push( @_ );
+
+    }
+
+    else {
+
+	$self->stash( Devel::ParseXS::Data->new( contents => [ @_ ] ) );
+
+    }
+
+    return;
 }
 
 sub parse_file {
@@ -71,9 +127,9 @@ sub parse_file {
 
     $self->fh->open( $file );
 
-    $self->context(  $self->header  );
+    $self->push_context(  $self->header  );
     $self->parse_header;
-    $self->context( $self->body  );
+    $self->swap_context( $self->body );
     $self->parse_body;
 
 }
@@ -84,9 +140,6 @@ sub parse_header {
 
     my $fh = $self->fh;
 
-    my $header = $self->header;
-
-    my $in_pod;
     my $found_module;
 
     # read until EOF or we hit a MODULE keyword
@@ -96,7 +149,7 @@ sub parse_header {
 
         $found_module = 1, last if $self->handle_MODULE;
 
-        push @{$header}, $_;
+	$self->stash_data( $_  );
 
     }
 

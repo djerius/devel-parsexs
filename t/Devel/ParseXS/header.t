@@ -9,46 +9,45 @@ use Safe::Isa;
 
 use Devel::ParseXS;
 
-use t::common qw[ datafile ];
+use t::common qw[ datafile data];
 
-subtest 'pod ok' => sub {
+subtest 'header ok' => sub {
 
     my $p = Devel::ParseXS->new;
 
     is(
         exception {
-            $p->parse_file( datafile( 'pod_ok.xs' ) );
+            $p->parse_file( datafile( 'header_ok.xs' ) );
         },
         undef,
         'parse pod'
     );
 
-    my $pod_ok =
-    ok(
-       defined $p->header->[0]
-       && $p->header->[0]->$_isa( 'Devel::ParseXS::Pod' ),
-        'found pod'
-      );
+    my $idx = 0;
 
+    {
+        my $element = $p->header->[ $idx++ ];
+        ok( $element->$_isa( 'Devel::ParseXS::Data' ), 'found data' )
+          && is( $element->as_string, ${ data( 'data1' ) }, 'data1' );
+    }
 
-    SKIP : {
+    {
+        my $element = $p->header->[ $idx++ ];
 
-	skip "didn't find pod; can't continue", 1 unless $pod_ok;
+        ok( $element->$_isa( 'Devel::ParseXS::Pod' ), 'found pod' )
+          && is( $element->as_string, ${ data( 'pod' ) }, 'pod' );
+    }
 
-
-	is(
-	   $p->header->[0]->as_string,
-	   ${ __PACKAGE__->section_data( 'pod_ok' ) },
-	   'pod contents'
-	  );
-
+    {
+        my $element = $p->header->[ $idx++ ];
+        ok( $element->$_isa( 'Devel::ParseXS::Data' ), 'found data' )
+          && is( $element->as_string, ${ data( 'data2' ) }, 'data2' );
     }
 
 
-    is( $p->module, 'Trial::Foo', 'module name' );
-    is( $p->package, 'Foo::Bar', 'package name' );
-    is( $p->prefix, 'Bar', 'prefix name' );
-
+    is( $p->module,  'Trial::Foo', 'module name' );
+    is( $p->package, 'Foo::Bar',   'package name' );
+    is( $p->prefix,  'Bar',        'prefix name' );
 
 };
 
@@ -63,7 +62,6 @@ subtest 'pod not ok' => sub {
         qr/unterminated pod/,
         'parse pod'
     );
-
 
 };
 
@@ -86,12 +84,26 @@ done_testing;
 
 
 __DATA__
+__[ data1 ]__
+other
+stuff
+in
+the
+header
 
-__[ pod_ok ]__
+__[ pod ]__
 =head1 NAME
 
  trial
 
 
 =cut
+__[ data2 ]__
+
+more
+stuff
+in
+the
+header
+
 __END__
