@@ -85,6 +85,22 @@ subtest 'pod' => sub {
 
 };
 
+subtest 'pod not ok' => sub {
+
+    my $p = Devel::ParseXS->new;
+
+    like(
+        exception {
+            $p->parse_file( datafile( 'pod_not_ok.xs' ) );
+        },
+        qr/unterminated pod/,
+        'parse pod'
+    );
+
+
+};
+
+
 done_testing;
 
 __DATA__
