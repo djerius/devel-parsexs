@@ -28,7 +28,7 @@ use warnings;
 
         if ( $self->fh ) {
             my $fh = $self->fh;
-	    $self->fh( undef );
+            $self->fh( undef );
             $fh->close or croak( "unable to close @{[$self->filename]}: $!\n" );
         }
     }
@@ -79,10 +79,10 @@ use warnings;
 
 
 use Class::Tiny {
-    stack	=> sub { [] },
-    line	=> sub { Devel::ParseXS::Stream::Line->new },
-    lastline	=> sub { Devel::ParseXS::Stream::Line->new },
-    _ungetline	=> 0,
+    stack      => sub { [] },
+    line       => sub { Devel::ParseXS::Stream::Line->new },
+    lastline   => sub { Devel::ParseXS::Stream::Line->new },
+    _ungetline => 0,
 };
 
 sub stream { $_[0]->stack->[-1] }
@@ -137,22 +137,22 @@ sub swap_lines {
     return;
 }
 
-sub ungetline { $_[0]->_ungetline(1) }
+sub ungetline { $_[0]->_ungetline( 1 ) }
 
 sub readline {
 
     my $self = $_[0];
 
     goto &_readline
-	unless $self->_ungetline;
+      unless $self->_ungetline;
 
     $self->_ungetline( 0 );
 
     shift;
 
-    if ( defined ( my $contents = $self->line->contents ) ) {
-	( @_ ? $_[0] : $_ ) = ${ $contents };
-	return 1;
+    if ( defined( my $contents = $self->line->contents ) ) {
+        ( @_ ? $_[0] : $_ ) = ${$contents};
+        return 1;
     }
 
     return $_ = undef;
@@ -165,7 +165,7 @@ sub _readline {
 
     while ( my $stream = $self->stream ) {
 
-        if ( my $contents = readline( $stream->fh ) ) {
+        if ( my $contents = CORE::readline( $stream->fh ) ) {
 
             # update lastline
             $self->swap_lines;
