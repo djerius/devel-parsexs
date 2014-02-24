@@ -179,8 +179,6 @@ sub parse_body {
 
         next if $self->parse_comment;
 
-	$DB::single = 1 if /PROTOTYPES/;
-
         next if $self->handle_keyword( $Re{GKEYWORDS} );
 
         # TODO:  pay attention to  C preprocessor stuff
