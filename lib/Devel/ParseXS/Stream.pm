@@ -80,8 +80,8 @@ use warnings;
 
 use Class::Tiny {
     stack      => sub { [] },
-    line       => sub { Devel::ParseXS::Stream::Line->new },
-    lastline   => sub { Devel::ParseXS::Stream::Line->new },
+    _line       => sub { Devel::ParseXS::Stream::Line->new },
+    _lastline   => sub { Devel::ParseXS::Stream::Line->new },
     _ungetline => 0,
 };
 
@@ -130,9 +130,9 @@ sub swap_lines {
 
     my $self = shift;
 
-    my $lastline = $self->lastline;
-    $self->lastline( $self->line );
-    $self->line( $lastline );
+    my $lastline = $self->_lastline;
+    $self->_lastline( $self->_line );
+    $self->_line( $lastline );
 
     return;
 }
@@ -150,7 +150,7 @@ sub readline {
 
     shift;
 
-    if ( defined( my $contents = $self->line->contents ) ) {
+    if ( defined( my $contents = $self->_line->contents ) ) {
         ( @_ ? $_[0] : $_ ) = ${$contents};
         return 1;
     }
@@ -170,9 +170,9 @@ sub _readline {
             # update lastline
             $self->swap_lines;
 
-            $self->line->contents( \$contents );
-            $self->line->lineno( $stream->fh->input_line_number );
-            $self->line->stream( $stream );
+            $self->_line->contents( \$contents );
+            $self->_line->lineno( $stream->fh->input_line_number );
+            $self->_line->stream( $stream );
 
             ( @_ ? $_[0] : $_ ) = $contents;
             return 1;
@@ -188,23 +188,67 @@ sub _readline {
     $self->swap_lines;
 
     # easier to just toss the old object.
-    $self->line( Devel::ParseXS::Stream::Line->new );
+    $self->_line( Devel::ParseXS::Stream::Line->new );
 
     return $_ = undef;
 }
 
 sub lineno {
 
-    defined $_[0]->line->lineno
-      ? $_[0]->line->lineno
-      : $_[0]->lastline->lineno;
+    defined $_[0]->_line->lineno
+      ? $_[0]->_line->lineno
+      : $_[0]->_lastline->lineno;
 
+}
+
+sub lastlineno {
+
+    $_[0]->_lastline->lineno;
+
+}
+
+sub line {
+
+    my $self = shift;
+
+    if ( @_ ) {
+
+	$_[0] = ${ $self->_line->contents };
+
+    }
+
+    else {
+
+	return ${ $self->_line->contents };
+
+    }
+
+    return;
+}
+
+sub lastline {
+
+    my $self = shift;
+
+    if ( @_ ) {
+
+	$_[0] = ${ $self->_lastline->contents || \undef };
+
+    }
+
+    else {
+
+	return ${ $self->_lastline->contents || \undef };
+
+    }
+
+    return;
 }
 
 sub filename {
 
-        defined $_[0]->line->stream     ? $_[0]->line->stream->filename
-      : defined $_[0]->lastline->stream ? $_[0]->lastline->stream->filename
+        defined $_[0]->_line->stream     ? $_[0]->_line->stream->filename
+      : defined $_[0]->_lastline->stream ? $_[0]->_lastline->stream->filename
       :                                   undef;
 
 }

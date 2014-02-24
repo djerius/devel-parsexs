@@ -20,10 +20,10 @@ sub store {
     my ( $self, $s ) = @_;
 
     push @{ $self->dollar_ },    $_;
-    push @{ $self->line },       ${ $s->line->contents };
-    push @{ $self->lineno },     $s->line->lineno;
-    push @{ $self->lastline },   ${ $s->lastline->contents || \"\n" };
-    push @{ $self->lastlineno }, $s->lastline->lineno || 0;
+    push @{ $self->line },       $s->line;
+    push @{ $self->lineno },     $s->lineno;
+    push @{ $self->lastline },   $s->lastline || "\n";
+    push @{ $self->lastlineno }, $s->lastlineno || 0;
 
 }
 
