@@ -47,7 +47,7 @@ subtest 'comments only' => sub {
 
     {
 
-        my $comment = $p->context->[0];
+        my $comment = $p->tree->contents->[0];
 
         ok( defined $comment && $comment->$_isa( 'Devel::XS::AST::Comment' ),
             'found comment' );
@@ -104,7 +104,7 @@ subtest 'comments+cpp' => sub {
         'parse file'
     );
 
-    my $comment = $p->context->[0];
+    my $comment = $p->tree->contents->[0];
 
     my $found_comments
       = ok( defined $comment && $comment->$_isa( 'Devel::XS::AST::Comment' ),

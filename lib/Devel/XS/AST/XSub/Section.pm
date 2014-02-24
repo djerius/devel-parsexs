@@ -5,14 +5,9 @@ use Carp;
 use strict;
 use warnings;
 
+use base 'Devel::XS::AST::Element::Container';
 
-use Class::Tiny qw[ value ],
-    {
-     # additional attributes not managed by class
-     attr => sub { {} },
-     context => sub { [] },
-    } ;
-
+use Class::Tiny qw[ value ];
 
 package Devel::XS::AST::XSub::ALIAS;
 

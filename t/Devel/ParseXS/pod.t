@@ -46,7 +46,7 @@ subtest 'pod' => sub {
 
     {
 
-        my $pod = $p->context->[0];
+        my $pod = $p->tree->contents->[0];
 
         ok( defined $pod && $pod->$_isa( 'Devel::XS::AST::Pod' ),
             'found pod' );

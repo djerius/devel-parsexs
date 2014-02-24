@@ -26,20 +26,20 @@ subtest 'header ok' => sub {
     my $idx = 0;
 
     {
-        my $element = $p->header->[ $idx++ ];
+        my $element = $p->tree->contents->[ $idx++ ];
         ok( $element->$_isa( 'Devel::XS::AST::Data' ), 'found data' )
           && is( $element->as_string, ${ data( 'data1' ) }, 'data1' );
     }
 
     {
-        my $element = $p->header->[ $idx++ ];
+        my $element = $p->tree->contents->[ $idx++ ];
 
         ok( $element->$_isa( 'Devel::XS::AST::Pod' ), 'found pod' )
           && is( $element->as_string, ${ data( 'pod' ) }, 'pod' );
     }
 
     {
-        my $element = $p->header->[ $idx++ ];
+        my $element = $p->tree->contents->[ $idx++ ];
         ok( $element->$_isa( 'Devel::XS::AST::Data' ), 'found data' )
           && is( $element->as_string, ${ data( 'data2' ) }, 'data2' );
     }

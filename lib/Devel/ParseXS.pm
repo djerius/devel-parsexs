@@ -8,13 +8,15 @@ use Carp;
 
 use Safe::Isa;
 
+use Devel::ParseXS::Stream;
+
+use Devel::XS::AST;
 use Devel::XS::AST::Comment;
 use Devel::XS::AST::Data;
 use Devel::XS::AST::Keyword;
 use Devel::XS::AST::Pod;
-use Devel::ParseXS::Stream;
-use Devel::XS::AST::XSub;
 use Devel::XS::AST::XSub::Section;
+use Devel::XS::AST::XSub;
 
 our %Re = (
 
@@ -46,9 +48,8 @@ use Class::Tiny
   qw[ fh module package prefix _context ],
   {
     fh       => sub { Devel::ParseXS::Stream->new },
-    header   => sub { [] },
-    body     => sub { [] },
-    _context => sub { [undef] },
+    tree     => sub { Devel::XS::AST->new },
+    _context => sub { [ undef ] },
   };
 
 
@@ -56,7 +57,7 @@ sub BUILD {
 
     my $self = shift;
 
-    $self->context( $self->header );
+    $self->context( $self->tree );
 
 }
 
@@ -64,12 +65,14 @@ sub push_context {
 
     push @{ $_[0]->_context }, $_[1];
 
+    return;
 }
 
 sub pop_context {
 
     pop @{ $_[0]->_context };
 
+    return;
 }
 
 sub context {
@@ -90,19 +93,20 @@ sub stash {
 
     @_ > 1 && croak( "illegal stash of more than one object\n" );
 
-    push @{ $self->context }, $_[0];
+    $self->context->push( $_[0] );
 
+    return;
 }
 
 sub stash_data {
 
     my $self = shift;
 
-    my $last_element = $self->context->[-1];
+    my $context = $self->context;
 
-    if ( $last_element->$_isa( 'Devel::XS::AST::Data' ) ) {
+    if ( $context->last->$_isa( 'Devel::XS::AST::Data' ) ) {
 
-        $last_element->push( @_ );
+        $context->last->push( @_ );
 
     }
 
@@ -129,12 +133,10 @@ sub parse_file {
     my ( $self, $file ) = @_;
 
     $self->fh->open( $file );
-
-    $self->context( $self->header );
     $self->parse_header;
-    $self->context( $self->body );
     $self->parse_body;
 
+    return;
 }
 
 sub parse_header {
@@ -177,6 +179,8 @@ sub parse_body {
 
         next if $self->parse_comment;
 
+	$DB::single = 1 if /PROTOTYPES/;
+
         next if $self->handle_keyword( $Re{GKEYWORDS} );
 
         # TODO:  pay attention to  C preprocessor stuff
@@ -187,6 +191,7 @@ sub parse_body {
 
     }
 
+    return;
 }
 
 sub parse_xsub {
@@ -213,7 +218,7 @@ sub parse_xsub {
     $xsub->decl( $_ );
 
     $self->stash( $xsub );
-    $self->push_context( $xsub->context );
+    $self->push_context( $xsub );
 
     # at this point we'd normally check for ANSI C style argument
     # types; those would normally get stuck into an INPUT section
@@ -229,7 +234,7 @@ sub parse_xsub {
             },
         } );
     $self->stash( $input );
-    $self->push_context( $input->context );
+    $self->push_context( $input );
 
     while ( $fh->readline ) {
 
@@ -357,11 +362,12 @@ sub handle_keyword {
 
     my $handler = 'handle_' . $kwd;
 
-    return $self->can( $handler )
-      ? $self->$handler( $arg )
-      : $self->stash(
-        $self->create_ast_element(
-            'Keyword',
+    return $self->$handler( $arg )
+	if $self->can( $handler );
+
+    $self->stash(
+		 $self->create_ast_element(
+					   'Keyword',
             {
                 attr => {
                     lineno => $self->fh->lineno,
@@ -371,6 +377,7 @@ sub handle_keyword {
                 arg     => $arg,
             } ) );
 
+    return 1;
 }
 
 sub handle_MODULE {
@@ -414,6 +421,7 @@ sub handle_BOOT {
                 contents => \@contents,
             } ) );
 
+    return 1;
 }
 
 sub error {
