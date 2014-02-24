@@ -1,9 +1,9 @@
-package Devel::ParseXS::Data;
+package Devel::XS::AST::Data;
 
 use strict;
 use warnings;
 
-use base 'Devel::ParseXS::Element';
+use base 'Devel::XS::AST::Element';
 
 use Class::Tiny  {
     contents => sub { [] }

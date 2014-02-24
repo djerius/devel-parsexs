@@ -49,10 +49,10 @@ subtest 'comments only' => sub {
 
         my $comment = $p->context->[0];
 
-        ok( defined $comment && $comment->$_isa( 'Devel::ParseXS::Comment' ),
+        ok( defined $comment && $comment->$_isa( 'Devel::XS::AST::Comment' ),
             'found comment' );
 
-        is( $comment->lineno, 7, 'comment starting line number' );
+        is( $comment->attr->{lineno}, 7, 'comment starting line number' );
 
         is(
             $comment->as_string,
@@ -107,7 +107,7 @@ subtest 'comments+cpp' => sub {
     my $comment = $p->context->[0];
 
     my $found_comments
-      = ok( defined $comment && $comment->$_isa( 'Devel::ParseXS::Comment' ),
+      = ok( defined $comment && $comment->$_isa( 'Devel::XS::AST::Comment' ),
         'found comment' );
 
   SKIP: {
@@ -115,7 +115,7 @@ subtest 'comments+cpp' => sub {
         skip "didn't find comments; can't continue", 1 unless $found_comments;
 
 
-        is( $comment->lineno, 25, 'comment starting line number' );
+        is( $comment->attr->{lineno}, 25, 'comment starting line number' );
 
         is(
             $comment->as_string,

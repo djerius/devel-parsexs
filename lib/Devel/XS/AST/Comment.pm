@@ -1,9 +1,9 @@
-package Devel::ParseXS::Comment;
+package Devel::XS::AST::Comment;
 
 use strict;
 use warnings;
 
-use base 'Devel::ParseXS::Element';
+use base 'Devel::XS::AST::Element';
 
 use Class::Tiny  {
     contents => sub { [] }

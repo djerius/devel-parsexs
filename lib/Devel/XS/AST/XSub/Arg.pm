@@ -1,4 +1,4 @@
-package Devel::ParseXS::XSub::Arg;
+package Devel::XS::AST::XSub::Arg;
 
 use strict;
 use warnings;

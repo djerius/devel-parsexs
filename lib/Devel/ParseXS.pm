@@ -8,13 +8,13 @@ use Carp;
 
 use Safe::Isa;
 
-use Devel::ParseXS::Comment;
-use Devel::ParseXS::Data;
-use Devel::ParseXS::Keyword;
-use Devel::ParseXS::Pod;
+use Devel::XS::AST::Comment;
+use Devel::XS::AST::Data;
+use Devel::XS::AST::Keyword;
+use Devel::XS::AST::Pod;
 use Devel::ParseXS::Stream;
-use Devel::ParseXS::XSub;
-use Devel::ParseXS::XSub::Section;
+use Devel::XS::AST::XSub;
+use Devel::XS::AST::XSub::Section;
 
 our %Re = (
 
@@ -100,7 +100,7 @@ sub stash_data {
 
     my $last_element = $self->context->[-1];
 
-    if ( $last_element->$_isa( 'Devel::ParseXS::Data' ) ) {
+    if ( $last_element->$_isa( 'Devel::XS::AST::Data' ) ) {
 
         $last_element->push( @_ );
 
@@ -108,10 +108,17 @@ sub stash_data {
 
     else {
 
-        $self->stash( Devel::ParseXS::Data->new( lineno => $self->fh->lineno,
-						 stream => $self->fh->stream,
-						 contents => [@_] ) );
+        my $data = $self->create_ast_element(
+            'Data',
+            {
+                contents => [@_],
+                attr     => {
+                    lineno => $self->fh->lineno,
+                    stream => $self->fh->stream,
+                },
+            } );
 
+        $self->stash( $data );
     }
 
     return;
@@ -188,9 +195,14 @@ sub parse_xsub {
 
     my $fh = $self->fh;
 
-    my $xsub = Devel::ParseXS::XSub->new( lineno => $fh->lineno,
-					  stream => $fh->stream,
-					);
+    my $xsub = $self->create_ast_element(
+        'XSub',
+        {
+            attr => {
+                lineno => $fh->lineno,
+                stream => $fh->stream,
+            },
+        } );
 
     chomp;
     $xsub->return_type( $_ );
@@ -208,8 +220,14 @@ sub parse_xsub {
     # for now assume non-ANSI style
 
     # first section is implicitly INPUT
-    my $input = Devel::ParseXS::XSub::INPUT->new( lineno => $fh->lineno,
-						  stream => $fh->stream );
+    my $input = $self->create_ast_element(
+        'XSub::INPUT',
+        {
+            attr => {
+                lineno => $fh->lineno,
+                stream => $fh->stream,
+            },
+        } );
     $self->stash( $input );
     $self->push_context( $input->context );
 
@@ -229,12 +247,15 @@ sub parse_xsub {
 
         if ( /^($Re{XSUB_SECTION})\s*:\s*(?:#.*)?(.*)/ ) {
 
-            my $section = Devel::ParseXS::XSub::Section->create(
-                $1,
-                lineno => $fh->linno,
-                stream => $fh->stream,
-                value  => $2
-            );
+            my $section = $self->create_ast_element(
+                "XSub::$1",
+                {
+                    attr => {
+                        lineno => $fh->lineno,
+                        stream => $fh->stream,
+                    },
+                    value => $2
+                } );
             $self->stash( $section );
             $self->context( $section->context );
             next;
@@ -263,21 +284,25 @@ sub parse_pod {
 
     my $fh = $self->fh;
 
-    my $lineno = $fh->lineno;
+    my %attr = (
+        lineno => $fh->lineno,
+        stream => $fh->stream
+    );
     while ( $fh->readline ) {
         push @pod, $_;
         last if /^=cut\s*$/;
     }
 
-    $self->error( $lineno, "unterminated pod starting here\n" )
+    $self->error( $attr{lineno}, "unterminated pod starting here\n" )
       if !defined $_;
 
     $self->stash(
-        Devel::ParseXS::Pod->new(
-            stream   => $fh->stream,
-            lineno   => $lineno,
-            contents => \@pod
-        ) );
+        $self->create_ast_element(
+            'Pod',
+            {
+                attr     => \%attr,
+                contents => \@pod
+            } ) );
 
     return 1;
 }
@@ -290,7 +315,10 @@ sub parse_comment {
 
     my $fh = $self->fh;
 
-    my $lineno = $fh->lineno;
+    my %attr = (
+        lineno => $fh->lineno,
+        stream => $fh->stream
+    );
 
   LOOP:
     {
@@ -305,11 +333,12 @@ sub parse_comment {
 
     if ( @comments ) {
         $self->stash(
-            Devel::ParseXS::Comment->new(
-                stream   => $fh->stream,
-                lineno   => $lineno,
-                contents => \@comments
-            ) );
+            $self->create_ast_element(
+                'Comment',
+                {
+                    attr     => \%attr,
+                    contents => \@comments,
+                } ) );
 
         # last line wasn't a comment; put it back
         $fh->ungetline;
@@ -331,12 +360,16 @@ sub handle_keyword {
     return $self->can( $handler )
       ? $self->$handler( $arg )
       : $self->stash(
-        Devel::ParseXS::Keyword->new(
-            lineno  => $self->fh->lineno,
-            stream  => $self->fh->stream,
-            keyword => $kwd,
-            arg     => $arg
-        ) );
+        $self->create_ast_element(
+            'Keyword',
+            {
+                attr => {
+                    lineno => $self->fh->lineno,
+                    stream => $self->fh->stream,
+                },
+                keyword => $kwd,
+                arg     => $arg,
+            } ) );
 
 }
 
@@ -360,6 +393,11 @@ sub handle_BOOT {
 
     my $fh = $self->fh;
 
+    my %attr = (
+        lineno => $fh->lineno,
+        stream => $fh->stream
+    );
+
     my @contents;
 
     while ( $fh->readline ) {
@@ -368,7 +406,13 @@ sub handle_BOOT {
         push @contents, $_;
     }
 
-    $self->stash( Devel::ParseXS::BOOT->new( contents => \@contents ) );
+    $self->stash(
+        $self->create_ast_element(
+            'BOOT',
+            {
+                attr     => \%attr,
+                contents => \@contents,
+            } ) );
 
 }
 
@@ -380,6 +424,19 @@ sub error {
         ': ', @_ );
 }
 
+sub create_ast_element {
+
+    my ( $self, $class, $attr ) = @_;
+
+    $class = 'Devel::XS::AST::' . $class;
+
+    my @missing = grep { !defined $attr->{attr}{$_} } qw[ lineno stream ];
+
+    croak( "missing attribute(s) for object of class $class: @missing\n" )
+      if @missing;
+
+    return $class->new( $attr );
+}
 
 =head1 NAME
 

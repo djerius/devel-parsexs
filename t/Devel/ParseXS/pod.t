@@ -48,10 +48,10 @@ subtest 'pod' => sub {
 
         my $pod = $p->context->[0];
 
-        ok( defined $pod && $pod->$_isa( 'Devel::ParseXS::Pod' ),
+        ok( defined $pod && $pod->$_isa( 'Devel::XS::AST::Pod' ),
             'found pod' );
 
-        is( $pod->lineno, 7, 'pod starting line number' );
+        is( $pod->attr->{lineno}, 7, 'pod starting line number' );
 
         is(
             $pod->as_string,
