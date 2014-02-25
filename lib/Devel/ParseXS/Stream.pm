@@ -22,15 +22,23 @@ use warnings;
 
     use Carp;
 
-    sub DEMOLISH {
+    sub close {
 
         my $self = shift;
 
-        if ( $self->fh ) {
+	if ( $self->fh ) {
             my $fh = $self->fh;
             $self->fh( undef );
-            $fh->close or croak( "unable to close @{[$self->filename]}: $!\n" );
-        }
+	    $fh->close
+		or croak( "error closing stream @{[ $_[0]->filename ]}\n" );
+	}
+
+    }
+
+    sub DEMOLISH {
+
+        my $self = shift;
+	$self->close;
     }
 
 }
@@ -195,6 +203,7 @@ sub _readline {
 
         else {
 
+	    $stream->close;
             pop @{ $self->stack };
 
         }
