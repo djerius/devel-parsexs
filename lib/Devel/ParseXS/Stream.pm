@@ -139,6 +139,17 @@ sub swap_lines {
 
 sub ungetline { $_[0]->_ungetline( 1 ) }
 
+# replace the current line buffer with the specified contents and
+# unget it.
+sub pushline {
+
+    my ( $self, $contents ) = @_;
+
+    $self->_line->contents( \$contents );
+    $self->ungetline;
+
+}
+
 sub readline {
 
     my $self = $_[0];
