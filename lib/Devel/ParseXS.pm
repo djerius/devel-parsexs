@@ -8,6 +8,8 @@ use Carp;
 
 use Safe::Isa;
 
+use ExtUtils::Typemaps qw[ tidy_type ];
+
 use Devel::ParseXS::Stream;
 
 use Devel::XS::AST;
@@ -45,8 +47,9 @@ our %Re = (
 );
 
 use Class::Tiny
-  qw[ fh module package prefix _context ],
+  qw[ fh module package packid prefix _context ],
   {
+    argtypes => 1,
     fh       => sub { Devel::ParseXS::Stream->new },
     tree     => sub { Devel::XS::AST->new },
     _context => sub { [ undef ] },
@@ -207,20 +210,19 @@ sub parse_xsub {
             },
         } );
 
-    chomp;
-    $xsub->return_type( $_ );
+    # pay attention to continuation lines. Current line was
+    # not read in with the stream set to read logical records; first
+    # continue it if it needs it.
+    $fh->readline( { continue_record => 1 } );
+    $fh->logical_record( 1 );
+
+    $self->parse_declaration( $xsub );
 
     $fh->readline
       or $self->error( 0, "function definition too short\n" );
-    chomp;
-    $xsub->decl( $_ );
 
     $self->stash( $xsub );
     $self->push_context( $xsub );
-
-    # at this point we'd normally check for ANSI C style argument
-    # types; those would normally get stuck into an INPUT section
-    # for now assume non-ANSI style
 
     # first section is implicitly INPUT
     my $input = $self->create_ast_element(
@@ -236,9 +238,8 @@ sub parse_xsub {
 
     while ( $fh->readline ) {
 
-        # end on a blank line (not quite clear from the docs when an
-        # XSUB ends...)
-        last if /^\s*$/;
+        # XSUB ends if we hit a left adjusted line with a preceding blank one
+        $fh->ungetline && last if /^\S/ && $fh->lastline =~ /^\s*$/;
 
         next if $self->parse_pod;
 
@@ -274,7 +275,78 @@ sub parse_xsub {
     # XSUB context
     $self->pop_context;
 
+    # stop paying attention to continuation lines
+    $fh->logical_record(0);
+
     return;
+}
+
+sub parse_declaration {
+
+    my ( $self, $xsub ) = ( shift, shift );
+
+    # we accept (in pseudo-regexp)
+
+    #  (NO_OUTPUT\s+)?return_type
+    #  (\n)?
+    #  ( func_name\( args \) )?
+
+
+    $xsub->no_return( 1 ) if s/^\s*NO_OUTPUT\s+//;
+
+    # follow ExtUtils::ParseXS's lead of cleaning up the return type
+    # before checking for func_name(... )
+    my $return_type = ExtUtils::Typemaps::tidy_type( $_ );
+
+    # if argtypes set, try to parse as <return_type> func_name(...)
+    # RE's from ExtUtils:ParseXS
+    if ( $self->argtypes
+	 && $return_type =~ /^(.*?\w.*?)          # return type
+			      \s*\b(\w+\s*\(.*)   # func_name( args )
+			    /x
+       ) {
+
+	$return_type = $1;
+	$self->fh->pushline( $2 );
+
+    }
+    $xsub->externC(1) if $return_type =~ s/^extern "C"\s+//;
+    $xsub->static(1)  if $return_type =~ s/^static\s+//;
+
+    $xsub->return_type( $return_type );
+
+    $self->fh->readline( { clean_record => 1 } )
+      or $self->error( $self->fh->lineno, "function definition too short\n" );
+
+    # parse class? func_name( args ) (const)?
+    my $matched =
+      my ( $class, $func_name, $orig_args, $const ) =
+    /^
+     (?:([\w:]*)::)?  	   # C++ class
+     (\w+)            	   # name
+     \s*
+     \(\s* (.*?) \s*\)     # args
+     \s*
+     (const)?        	   # C++ const
+     \s*(;\s*)?      	   # trailing scruff
+     $/sx;
+
+    $self->error( 1, "not a function declaration: $_\n" )
+      unless $matched;
+
+    $class = "$const $class" if $const;
+
+    $xsub->class( $class );
+    $xsub->func_name( $func_name );
+
+    # remove possible prefix and add package name
+    ( my $clean_func_name = $func_name ) =~ s/^(@{[ $self->prefix ]})?//;
+    $xsub->perl_name( join( '::', $self->package ||(), $clean_func_name ) );
+    $xsub->full_func_name( join( '_', $self->packid, $clean_func_name ) );
+
+    # FIXME; parse args into $xsub->args
+    $xsub->decl( $orig_args );
+
 }
 
 sub parse_pod {
@@ -382,11 +454,17 @@ sub handle_MODULE {
 
     my $self = shift;
 
-    return unless $_ =~ $Re{MODULE};
+    return unless
+      my ( $module, $package, $prefix ) = $_ =~ $Re{MODULE};
 
-    $self->module( $1 );
-    $self->package( $2 );
-    $self->prefix( $3 );
+
+    $self->module(  $module );
+    $self->package( defined $package ? $package : '' );
+    $self->prefix(  defined $prefix ? quotemeta( $prefix ) : '' );
+
+    (my $packid = $self->package) =~ tr/:/_/;
+
+    $self->packid($packid);
 
     return 1;
 }
