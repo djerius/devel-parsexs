@@ -26,19 +26,19 @@ use warnings;
 
         my $self = shift;
 
-	if ( $self->fh ) {
+        if ( $self->fh ) {
             my $fh = $self->fh;
             $self->fh( undef );
-	    $fh->close
-		or croak( "error closing stream @{[ $_[0]->filename ]}\n" );
-	}
+            $fh->close
+              or croak( "error closing stream @{[ $_[0]->filename ]}\n" );
+        }
 
     }
 
     sub DEMOLISH {
 
         my $self = shift;
-	$self->close;
+        $self->close;
     }
 
 }
@@ -87,11 +87,11 @@ use warnings;
 
 
 use Class::Tiny {
-    stack		=> sub { [] },
-    _line		=> sub { Devel::ParseXS::Stream::Line->new },
-    _lastline		=> sub { Devel::ParseXS::Stream::Line->new },
-    _ungetline		=> 0,
-    logical_record	=> 0,
+    stack          => sub { [] },
+    _line          => sub { Devel::ParseXS::Stream::Line->new },
+    _lastline      => sub { Devel::ParseXS::Stream::Line->new },
+    _ungetline     => 0,
+    logical_record => 0,
 };
 
 sub stream { $_[0]->stack->[-1] }
@@ -183,22 +183,50 @@ sub readline {
 sub _readline {
 
     my $self = shift;
+    my $attr = 'HASH' eq ref $_[-1] ? pop : {};
+
+    my $logical_record
+      = defined $attr->{logical_record}
+      ? $attr->{logical_record}
+      : $self->logical_record;
+
+    $logical_record = 1 if $attr->{continue_record};
+
+    # if asked to extend existing line which isn't continued, just
+    # return the existing one.
+    if ( $attr->{continue_record} && ${ $self->_line->contents } !~ /\\$/ ) {
+
+        ( @_ ? $_[0] : $_ ) = ${ $self->_line->contents };
+        return 1;
+
+    }
 
     my $line;
 
     while ( my $stream = $self->stream ) {
 
-        if ( $line = CORE::readline( $stream->fh ) ) {
+        # use the last line if we're extending rather than reading in
+        # a new one. because of the check above, it's guaranteed to be defined,
+        # and we won't mistakenly switch to another stream.
+        $line
+          = $attr->{continue_record}
+          ? ${ $self->_line->contents } . "\n"
+          : CORE::readline( $stream->fh );
 
-            # update lastline
-            $self->swap_lines;
+        if ( $line ) {
 
-	    # save line number before reading possible continuation records
-            $self->_line->lineno( $stream->fh->input_line_number );
-            $self->_line->stream( $stream );
+            if ( !$attr->{continue_record} ) {
+                # update lastline
+                $self->swap_lines;
 
-	    # read further lines in if they end with a \ and logical_record is true
-            if ( $self->logical_record && $line =~ /\\$/ ) {
+                # save line number before reading possible continuation records
+                $self->_line->lineno( $stream->fh->input_line_number );
+                $self->_line->stream( $stream );
+            }
+
+            # read further lines in if they end with a \ and
+            # logical_record is true
+            if ( $logical_record && $line =~ /\\$/ ) {
 
                 # avoid repeated concatenations
                 my @lines;
@@ -256,13 +284,13 @@ sub line {
 
     if ( @_ ) {
 
-	$_[0] = ${ $self->_line->contents };
+        $_[0] = ${ $self->_line->contents };
 
     }
 
     else {
 
-	return ${ $self->_line->contents };
+        return ${ $self->_line->contents };
 
     }
 
@@ -275,13 +303,13 @@ sub lastline {
 
     if ( @_ ) {
 
-	$_[0] = ${ $self->_lastline->contents || \undef };
+        $_[0] = ${ $self->_lastline->contents || \undef };
 
     }
 
     else {
 
-	return ${ $self->_lastline->contents || \undef };
+        return ${ $self->_lastline->contents || \undef };
 
     }
 
@@ -292,7 +320,7 @@ sub filename {
 
         defined $_[0]->_line->stream     ? $_[0]->_line->stream->filename
       : defined $_[0]->_lastline->stream ? $_[0]->_lastline->stream->filename
-      :                                   undef;
+      :                                    undef;
 
 }
 

@@ -167,19 +167,19 @@ subtest 'logical_record' => sub {
             'open stream'
         );
 
-
+	$DB::single=1;
 	is( $s->readline && $_ , 'a \\', "logical record off, continuation character" );
+
+	is( $s->readline( { continue_record => 1 }  )  && $_ , "a \\\nb \\\nc \\\nd", "extend record" );
+
+	is( $s->readline && $_ , "e \\", "after record extension" );
 
 	$s->logical_record( 1 );
 
-	is( $s->readline && $_ , "b \\\nc \\\nd", "logical record on; continued" );
+	is( $s->readline && $_ , "f \\\ng \\\nh", "logical record on" );
+	is( $s->readline && $_ , "i", "logical record off" );
+	is( $s->readline( { continue_record => 1 } ) && $_ , "i", "request continue, current line doesn't permit" );
 
-	is( $s->readline && $_ , "e", "logical record on; after continuation" );
-
-	$s->logical_record( 0 );
-
-	is( $s->readline && $_ , "f \\", "logical record off again" );
-	is( $s->readline && $_ , "g \\", "logical record off again" );
 };
 
 
