@@ -87,10 +87,11 @@ use warnings;
 
 
 use Class::Tiny {
-    stack      => sub { [] },
-    _line       => sub { Devel::ParseXS::Stream::Line->new },
-    _lastline   => sub { Devel::ParseXS::Stream::Line->new },
-    _ungetline => 0,
+    stack		=> sub { [] },
+    _line		=> sub { Devel::ParseXS::Stream::Line->new },
+    _lastline		=> sub { Devel::ParseXS::Stream::Line->new },
+    _ungetline		=> 0,
+    logical_record	=> 0,
 };
 
 sub stream { $_[0]->stack->[-1] }
@@ -168,6 +169,7 @@ sub readline {
     $self->_ungetline( 0 );
 
     shift;
+    my $attr = 'HASH' eq ref $_[-1] ? pop : {};
 
     if ( defined( my $contents = $self->_line->contents ) ) {
         ( @_ ? $_[0] : $_ ) = ${$contents};
@@ -182,28 +184,45 @@ sub _readline {
 
     my $self = shift;
 
-    my $contents;
+    my $line;
 
     while ( my $stream = $self->stream ) {
 
-        if ( $contents = CORE::readline( $stream->fh ) ) {
-
-	    chomp $contents;
+        if ( $line = CORE::readline( $stream->fh ) ) {
 
             # update lastline
             $self->swap_lines;
 
-            $self->_line->contents( \$contents );
+	    # save line number before reading possible continuation records
             $self->_line->lineno( $stream->fh->input_line_number );
             $self->_line->stream( $stream );
 
-            ( @_ ? $_[0] : $_ ) = $contents;
+	    # read further lines in if they end with a \ and logical_record is true
+            if ( $self->logical_record && $line =~ /\\$/ ) {
+
+                # avoid repeated concatenations
+                my @lines;
+                do {
+
+                    push @lines, scalar CORE::readline( $stream->fh );
+
+                } while defined $lines[-1] && $lines[-1] =~ /\\$/;
+
+                pop @lines if !defined $lines[-1];
+
+                $line = join( '', $line, @lines );
+            }
+
+            chomp $line;
+            $self->_line->contents( \$line );
+
+            ( @_ ? $_[0] : $_ ) = $line;
             return 1;
         }
 
         else {
 
-	    $stream->close;
+            $stream->close;
             pop @{ $self->stack };
 
         }

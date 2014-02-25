@@ -154,6 +154,35 @@ for my $ssrc ( [ file => \&mkfile ], [ pipe => \&mkpipe ] ) {
 
 }
 
+subtest 'logical_record' => sub {
+
+
+        my $s = Devel::ParseXS::Stream->new;
+
+        is(
+            exception {
+                $s->open( datafile( 'logical_record_test' ) );
+            },
+            undef,
+            'open stream'
+        );
+
+
+	is( $s->readline && $_ , 'a \\', "logical record off, continuation character" );
+
+	$s->logical_record( 1 );
+
+	is( $s->readline && $_ , "b \\\nc \\\nd", "logical record on; continued" );
+
+	is( $s->readline && $_ , "e", "logical record on; after continuation" );
+
+	$s->logical_record( 0 );
+
+	is( $s->readline && $_ , "f \\", "logical record off again" );
+	is( $s->readline && $_ , "g \\", "logical record off again" );
+};
+
+
 done_testing;
 
 __DATA__
