@@ -92,6 +92,7 @@ use Class::Tiny {
     _lastline      => sub { Devel::ParseXS::Stream::Line->new },
     _ungetline     => 0,
     logical_record => 0,
+    clean_record   => 0,
 };
 
 sub stream { $_[0]->stack->[-1] }
@@ -185,16 +186,15 @@ sub _readline {
     my $self = shift;
     my $attr = 'HASH' eq ref $_[-1] ? pop : {};
 
-    my $logical_record
-      = defined $attr->{logical_record}
-      ? $attr->{logical_record}
-      : $self->logical_record;
+    my %attr = ( logical_record => $self->logical_record,
+		 clean_record   => $self->clean_record,
+		 %$attr );
 
-    $logical_record = 1 if $attr->{continue_record};
+    $attr{logical_record} = 1 if $attr{continue_record};
 
     # if asked to extend existing line which isn't continued, just
     # return the existing one.
-    if ( $attr->{continue_record} && ${ $self->_line->contents } !~ /\\$/ ) {
+    if ( $attr{continue_record} && ${ $self->_line->contents } !~ /\\$/ ) {
 
         ( @_ ? $_[0] : $_ ) = ${ $self->_line->contents };
         return 1;
@@ -209,13 +209,13 @@ sub _readline {
         # a new one. because of the check above, it's guaranteed to be defined,
         # and we won't mistakenly switch to another stream.
         $line
-          = $attr->{continue_record}
+          = $attr{continue_record}
           ? ${ $self->_line->contents } . "\n"
           : CORE::readline( $stream->fh );
 
         if ( $line ) {
 
-            if ( !$attr->{continue_record} ) {
+            if ( !$attr{continue_record} ) {
                 # update lastline
                 $self->swap_lines;
 
@@ -226,7 +226,7 @@ sub _readline {
 
             # read further lines in if they end with a \ and
             # logical_record is true
-            if ( $logical_record && $line =~ /\\$/ ) {
+            if ( $attr{logical_record} && $line =~ /\\$/ ) {
 
                 # avoid repeated concatenations
                 my @lines;
@@ -237,6 +237,10 @@ sub _readline {
                 } while defined $lines[-1] && $lines[-1] =~ /\\$/;
 
                 pop @lines if !defined $lines[-1];
+
+		if ( $attr{clean_record} ) {
+		    do { s/\\$//; chomp } foreach $line, @lines;
+		}
 
                 $line = join( '', $line, @lines );
             }

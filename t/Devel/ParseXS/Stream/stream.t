@@ -167,7 +167,6 @@ subtest 'logical_record' => sub {
             'open stream'
         );
 
-	$DB::single=1;
 	is( $s->readline && $_ , 'a \\', "logical record off, continuation character" );
 
 	is( $s->readline( { continue_record => 1 }  )  && $_ , "a \\\nb \\\nc \\\nd", "extend record" );
@@ -180,6 +179,8 @@ subtest 'logical_record' => sub {
 	is( $s->readline && $_ , "i", "logical record off" );
 	is( $s->readline( { continue_record => 1 } ) && $_ , "i", "request continue, current line doesn't permit" );
 
+	is( $s->readline( { clean_record => 1 } ) && $_,
+	    "k l m", "clean logical records" );
 };
 
 
