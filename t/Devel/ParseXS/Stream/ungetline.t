@@ -34,19 +34,19 @@ subtest "ungetline" => sub {
 	    'read stream'
 	);
 
-        is ( $line, "d4\n", 'expected line contents' );
+        is ( $line, 'd4', 'expected line contents' );
 	is ( $s->lineno, 4, 'expected line number' );
 
 	$s->ungetline(1);
 
 	$s->readline( $line );
 
-	is ( $line, "d4\n", 'repeated line contents' );
+	is ( $line, 'd4', 'repeated line contents' );
 	is ( $s->lineno, 4, 'repeated line number' );
 
 	$s->readline( $line );
 
-	is ( $line, "e5\n", 'next line' );
+	is ( $line, 'e5', 'next line' );
 	is ( $s->lineno, 5, 'next line number' );
 
 };

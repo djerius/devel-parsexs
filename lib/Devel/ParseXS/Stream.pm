@@ -163,9 +163,13 @@ sub _readline {
 
     my $self = shift;
 
+    my $contents;
+
     while ( my $stream = $self->stream ) {
 
-        if ( my $contents = CORE::readline( $stream->fh ) ) {
+        if ( $contents = CORE::readline( $stream->fh ) ) {
+
+	    chomp $contents;
 
             # update lastline
             $self->swap_lines;

@@ -13,7 +13,7 @@ sub as_string {
 
     my $self = shift;
 
-    return join( '', @{ $self->contents } );
+    return join( "\n", @{ $self->contents }, @{$self->contents} ? '' : ()  );
 }
 
 1;
