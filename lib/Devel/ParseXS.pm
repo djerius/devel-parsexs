@@ -245,10 +245,6 @@ sub parse_xsub {
 
         next if $self->parse_comment;
 
-        # not quite sure if these are allowed in an initial INPUT
-        # section...
-        next if $self->handle_keyword( $Re{GKEYWORDS} );
-
         if ( /^($Re{XSUB_SECTION})\s*:\s*(?:#.*)?(.*)/ ) {
 
             my $section = $self->create_ast_element(
