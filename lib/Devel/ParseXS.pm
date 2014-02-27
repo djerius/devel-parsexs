@@ -506,6 +506,14 @@ sub error {
         ': ', @_ );
 }
 
+sub warn {
+
+    my ( $self, $lineno ) = ( shift, shift );
+
+    carp( $self->fh->filename, $lineno ? ( ': ', $self->fh->lineno ) : (),
+        ': ', @_ );
+}
+
 sub create_ast_element {
 
     my ( $self, $class, $attr ) = @_;
