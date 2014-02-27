@@ -42,7 +42,6 @@ our %Re = (
       qr/BOOT|REQUIRE|PROTOTYPES|EXPORT_XSUB_SYMBOLS|FALLBACK|VERSIONCHECK|INCLUDE(?:_COMMAND)?|SCOPE/,
 
     XSUB_SECTION =>
-      qr/ALIAS|C_ARGS|CASE|CLEANUP|CODE|INIT|INPUT|INTERFACE(?:_MACRO)?|OVERLOAD|PPCODE|PREINIT|POSTCALL|PROTOTYPE/,
 
 );
 
@@ -245,7 +244,8 @@ sub parse_xsub {
 
         next if $self->parse_comment;
 
-        if ( /^($Re{XSUB_SECTION})\s*:\s*(?:#.*)?(.*)/ ) {
+
+        if ( /^\s*($Re{XSUB_SECTION})\s*:\s*(?:#.*)?(.*)/ ) {
 
             my $section = $self->create_ast_element(
                 "XSub::$1",
@@ -256,8 +256,10 @@ sub parse_xsub {
                     },
                     value => $2
                 } );
+
+	    $self->pop_context;
             $self->stash( $section );
-            $self->context( $section->context );
+            $self->push_context( $section );
             next;
         }
 
