@@ -17,9 +17,18 @@ use Class::Tiny
 	full_func_name
    ],
   {
-    context => sub { [] },
-    args    => sub { [] },
+    # list of Devel::XS::AST::XSub::Args
+    args    => sub { Devel::XS::AST::Element::Container->new; },
     no_return => 0,
   };
+
+
+sub push_arg {
+
+    my $self = shift;
+
+    $self->args->push( @_ );
+
+}
 
 1;

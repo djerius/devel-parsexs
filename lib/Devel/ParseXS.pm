@@ -17,8 +17,9 @@ use Devel::XS::AST::Comment;
 use Devel::XS::AST::Data;
 use Devel::XS::AST::Keyword;
 use Devel::XS::AST::Pod;
-use Devel::XS::AST::XSub::Section;
 use Devel::XS::AST::XSub;
+use Devel::XS::AST::XSub::Arg;
+use Devel::XS::AST::XSub::Section;
 
 our %Re = (
 
@@ -42,6 +43,52 @@ our %Re = (
       qr/BOOT|REQUIRE|PROTOTYPES|EXPORT_XSUB_SYMBOLS|FALLBACK|VERSIONCHECK|INCLUDE(?:_COMMAND)?|SCOPE/,
 
     XSUB_SECTION =>
+      qr/ALIAS|C_ARGS|CASE|CLEANUP|CODE|INIT|INPUT|INTERFACE(?:_MACRO)?|OVERLOAD|OUTPUT|PPCODE|PREINIT|POSTCALL|PROTOTYPE/,
+
+    # in ExtUtils::ParseXS, a parameter may be within a "C group",
+    # where a group is essentially anything in (possibly) nested ({[
+    # pairs.  (Actually, they don't have to be paired, just balanced,
+    # so [foo) is ok.)  This is its definition:
+
+    #     # Group in C (no support for comments or literals)
+    #     $C_group_rex = qr/ [({\[]
+    #                  (?: (?> [^()\[\]{}]+ ) | (??{ $C_group_rex }) )*
+    #                  [)}\]] /x;
+
+    # I'm not sure _why_ one would write a function declaration as
+    #   func_name( [char* name], ( int foo ) )
+
+    # Rather than cargo-cult this, I'm leaving it out until it's
+    # proven necessary.
+
+    # here's the definition of a parameter (technically it's a
+    # parameter, not an argument)
+
+    #    # Chunk in C without comma at toplevel (no comments):
+    #    $C_arg = qr/ (?: (?> [^()\[\]{},"']+ )
+    #           |   (??{ $C_group_rex })
+    #           |   " (?: (?> [^\\"]+ )
+    #             |   \\.
+    #             )* "        # String literal
+    #                  |   ' (?: (?> [^\\']+ ) | \\. )* ' # Char literal
+    #           )* /xs;
+
+    # this isn't that strict (for example, a parameter of 1-2+3/2 would pass),
+    # but that's (hopefully) caught later.
+
+    # Removing the $C_group_rex and simplifying the first group, which seems
+    # to be a bit more complicated than needed just so that $C_group_rex will be
+    # recognized, this is
+
+    XSUB_PARAMETER => qr/ (?:
+		    (?> [^,"']+ )                 # not a quoted or a separator
+	      |   " (?: (?> [^\\"]+ ) | \\. )* "  # String literal
+	      |   ' (?: (?> [^\\']+ ) | \\. )* '  # Char literal
+	      )* /xs,
+
+
+    XSUB_PARAMETER_INOUT =>
+      qr/^\s* (IN(?:_OUTLIST|_OUT)? | OUT(?:LIST)?) \b \s*/x,
 
 );
 
@@ -323,7 +370,7 @@ sub parse_declaration {
      (?:([\w:]*)::)?  	   # C++ class
      (\w+)            	   # name
      \s*
-     \(\s* (.*?) \s*\)     # args
+     \(\s* (.*?) \s*\)     # parameters
      \s*
      (const)?        	   # C++ const
      \s*(;\s*)?      	   # trailing scruff
@@ -342,9 +389,118 @@ sub parse_declaration {
     $xsub->perl_name( join( '::', $self->package ||(), $clean_func_name ) );
     $xsub->full_func_name( join( '_', $self->packid, $clean_func_name ) );
 
-    # FIXME; parse args into $xsub->args
-    $xsub->decl( $orig_args );
+    $self->parse_function_parameters( $xsub, $parameters )
+      if $parameters =~ /\S/;
 
+    return;
+}
+
+# parse function parameters. passed one big string
+sub parse_function_parameters {
+
+    my ( $self, $xsub, $parameters ) = @_;
+
+    my $saved_parameters = $parameters;
+
+    # to make the parsing easier
+    $parameters .= ' ,';
+
+    # following the lead of ExtUtils::ParseXS here...
+    my $parse_arg_types
+      = $self->argtypes && $parameters =~ /( $Re{XSUB_PARAMETER} , )* $/x;
+
+    if ( $parse_arg_types ) {
+
+        for ( $parameters =~ m/\G ( $Re{XSUB_PARAMETER } ) , /xg ) {
+
+            my $save = $_;
+
+            my ( $inout_type ) = s/$Re{XSUB_PARAMETER_INOUT}//x;
+            $inout_type ||= 'IN';
+
+            # param may be assigned a default; strip that out, as
+            # well as any extra whitespace
+            s/^\s* ( [^=]*? ) \s* (?: = \s* (.*?)\s* )?$/$1/x;
+            my $default = $2;
+
+            # param may be 'type name | name | length(name)'
+            my ( $type, $name, $length_name ) = /
+		    (.*?)                         # type
+		    \s* \b (?:
+			(\w+)                     # name
+		    | length\( \s*(\w+)\s* \)     # length( name )
+		    ) \s* $ /x;
+
+
+            my %argp = (
+                c_type     => $type,
+                inout_type => $inout_type,
+                attr       => {
+                    lineno => $self->fh->lineno,
+                    stream => $self->fh->stream,
+                },
+            );
+
+            if ( defined( $argp{name} = $name ) ) {
+
+                $argp{default} = $default;
+
+            }
+            elsif ( defined( $argp{name} = $length_name ) ) {
+
+                $self->error( 1, "Default value on length() argument: '$save'" )
+                  if defined $default;
+
+                $argp{length} = 1;
+
+            }
+
+	    elsif ( $_ eq '...' ) {
+
+		$argp{ellipsis} = 1;
+
+	    }
+            else {
+
+                # can we actually get here?
+                $self->error( 1,
+                    "can't find type or name in argument: '$save'" );
+
+            }
+
+            $xsub->push_arg( $self->create_ast_element( 'XSub::Arg', \%argp ) );
+        }
+
+    }
+    else {
+
+        $self->warn(
+            "Cannot parse argument list '$saved_parameters', fallback to split\n"
+        ) if $self->argtypes;
+
+        for ( split( /\s*,\s*/, $parameters ) ) {
+
+            my ( $inout_type ) = s/$Re{XSUB_PARAMETER_INOUT}//x;
+            $inout_type ||= 'IN';
+
+            $xsub->push_arg(
+                $self->create_ast_element(
+                    'XSub::Arg',
+                    {
+                        name       => $_,
+                        inout_type => $inout_type,
+                        attr       => {
+                            lineno => $self->fh->lineno,
+                            stream => $self->fh->stream,
+                        },
+                    },
+
+                ) );
+        }
+
+    }
+
+    return;
 }
 
 sub parse_pod {
