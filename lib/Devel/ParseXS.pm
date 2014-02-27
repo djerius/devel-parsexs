@@ -98,7 +98,7 @@ use Class::Tiny
     argtypes => 1,
     fh       => sub { Devel::ParseXS::Stream->new },
     tree     => sub { Devel::XS::AST->new },
-    _context => sub { [ undef ] },
+    _context => sub { [undef] },
   };
 
 
@@ -304,7 +304,7 @@ sub parse_xsub {
                     value => $2
                 } );
 
-	    $self->pop_context;
+            $self->pop_context;
             $self->stash( $section );
             $self->push_context( $section );
             next;
@@ -321,7 +321,7 @@ sub parse_xsub {
     $self->pop_context;
 
     # stop paying attention to continuation lines
-    $fh->logical_record(0);
+    $fh->logical_record( 0 );
 
     return;
 }
@@ -345,28 +345,28 @@ sub parse_declaration {
 
     # if argtypes set, try to parse as <return_type> func_name(...)
     # RE's from ExtUtils:ParseXS
-    if ( $self->argtypes
-	 && $return_type =~ /^(.*?\w.*?)          # return type
+    if (
+           $self->argtypes
+        && $return_type =~ /^(.*?\w.*?)          # return type
 			      \s*\b(\w+\s*\(.*)   # func_name( args )
 			    /x
-       ) {
+      )
+    {
 
-	$return_type = $1;
-	$self->fh->pushline( $2 );
-
+        $return_type = $1;
+	# replace original line with func_name(...). this keeps the correct line number
+        $self->fh->pushline( $2 );
     }
-    $xsub->externC(1) if $return_type =~ s/^extern "C"\s+//;
-    $xsub->static(1)  if $return_type =~ s/^static\s+//;
+    $xsub->externC( 1 ) if $return_type =~ s/^extern "C"\s+//;
+    $xsub->static( 1 )  if $return_type =~ s/^static\s+//;
 
     $xsub->return_type( $return_type );
 
     $self->fh->readline( { clean_record => 1 } )
       or $self->error( $self->fh->lineno, "function definition too short\n" );
 
-    # parse class? func_name( args ) (const)?
-    my $matched =
-      my ( $class, $func_name, $orig_args, $const ) =
-    /^
+    # parse class? func_name( parameters ) (const)?
+    my $matched = my ( $class, $func_name, $parameters, $const ) = /^
      (?:([\w:]*)::)?  	   # C++ class
      (\w+)            	   # name
      \s*
@@ -386,7 +386,7 @@ sub parse_declaration {
 
     # remove possible prefix and add package name
     ( my $clean_func_name = $func_name ) =~ s/^(@{[ $self->prefix ]})?//;
-    $xsub->perl_name( join( '::', $self->package ||(), $clean_func_name ) );
+    $xsub->perl_name( join( '::', $self->package || (), $clean_func_name ) );
     $xsub->full_func_name( join( '_', $self->packid, $clean_func_name ) );
 
     $self->parse_function_parameters( $xsub, $parameters )
@@ -455,11 +455,11 @@ sub parse_function_parameters {
 
             }
 
-	    elsif ( $_ eq '...' ) {
+            elsif ( $_ eq '...' ) {
 
-		$argp{ellipsis} = 1;
+                $argp{ellipsis} = 1;
 
-	    }
+            }
             else {
 
                 # can we actually get here?
@@ -587,11 +587,11 @@ sub handle_keyword {
     my $handler = 'handle_' . $kwd;
 
     return $self->$handler( $arg )
-	if $self->can( $handler );
+      if $self->can( $handler );
 
     $self->stash(
-		 $self->create_ast_element(
-					   'Keyword',
+        $self->create_ast_element(
+            'Keyword',
             {
                 attr => {
                     lineno => $self->fh->lineno,
@@ -608,17 +608,17 @@ sub handle_MODULE {
 
     my $self = shift;
 
-    return unless
-      my ( $module, $package, $prefix ) = $_ =~ $Re{MODULE};
+    return
+      unless my ( $module, $package, $prefix ) = $_ =~ $Re{MODULE};
 
 
-    $self->module(  $module );
-    $self->package( defined $package ? $package : '' );
-    $self->prefix(  defined $prefix ? quotemeta( $prefix ) : '' );
+    $self->module( $module );
+    $self->package( defined $package ? $package             : '' );
+    $self->prefix( defined $prefix   ? quotemeta( $prefix ) : '' );
 
-    (my $packid = $self->package) =~ tr/:/_/;
+    ( my $packid = $self->package ) =~ tr/:/_/;
 
-    $self->packid($packid);
+    $self->packid( $packid );
 
     return 1;
 }
