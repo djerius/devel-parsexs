@@ -95,7 +95,6 @@ our %Re = (
 use Class::Tiny
   qw[ fh module package packid prefix _context ],
   {
-    argtypes => 1,
     fh       => sub { Devel::ParseXS::Stream->new },
     tree     => sub { Devel::XS::AST->new },
     _context => sub { [undef] },
@@ -343,13 +342,12 @@ sub parse_declaration {
     # before checking for func_name(... )
     my $return_type = ExtUtils::Typemaps::tidy_type( $_ );
 
-    # if argtypes set, try to parse as <return_type> func_name(...)
+    # Try to parse as <return_type> func_name(...)
     # RE's from ExtUtils:ParseXS
     if (
-           $self->argtypes
-        && $return_type =~ /^(.*?\w.*?)          # return type
-			      \s*\b(\w+\s*\(.*)   # func_name( args )
-			    /x
+        $return_type =~ /^(.*?\w.*?)          # return type
+			 \s*\b(\w+\s*\(.*)   # func_name( args )
+			/x
       )
     {
 
@@ -405,26 +403,30 @@ sub parse_function_parameters {
     # to make the parsing easier
     $parameters .= ' ,';
 
-    # following the lead of ExtUtils::ParseXS here...
-    my $parse_arg_types
-      = $self->argtypes && $parameters =~ /( $Re{XSUB_PARAMETER} , )* $/x;
+    # ExtUtils::ParseXS splits out processing ANSI-C style
+    # vs. old-style declarations; the code should be robust enough to
+    # handle either.
 
-    if ( $parse_arg_types ) {
+    if ( $parameters !~ /( $Re{XSUB_PARAMETER} , )* $/x && $parameters =~ /\S/ )  {
 
-        for ( $parameters =~ m/\G ( $Re{XSUB_PARAMETER } ) , /xg ) {
+        $self->error( 0,
+            "Unable to parse function declarations: $parameters\n" );
+    }
 
-            my $save = $_;
+    for ( $parameters =~ m/\G ( $Re{XSUB_PARAMETER} ) , /xg ) {
 
-            my ( $inout_type ) = s/$Re{XSUB_PARAMETER_INOUT}//x;
-            $inout_type ||= 'IN';
+        my $save = $_;
 
-            # param may be assigned a default; strip that out, as
-            # well as any extra whitespace
-            s/^\s* ( [^=]*? ) \s* (?: = \s* (.*?)\s* )?$/$1/x;
-            my $default = $2;
+        my ( $inout_type ) = s/$Re{XSUB_PARAMETER_INOUT}//x;
+        $inout_type ||= 'IN';
 
-            # param may be 'type name | name | length(name)'
-            my ( $type, $name, $length_name ) = /
+        # param may be assigned a default; strip that out, as
+        # well as any extra whitespace
+        s/^\s* ( [^=]*? ) \s* (?: = \s* (.*?)\s* )?$/$1/x;
+        my $default = $2;
+
+        # param may be 'type name | name | length(name)'
+        my ( $type, $name, $length_name ) = /
 		    (.*?)                         # type
 		    \s* \b (?:
 			(\w+)                     # name
@@ -432,72 +434,42 @@ sub parse_function_parameters {
 		    ) \s* $ /x;
 
 
-            my %argp = (
-                c_type     => $type,
-                inout_type => $inout_type,
-                attr       => {
-                    lineno => $self->fh->lineno,
-                    stream => $self->fh->stream,
-                },
-            );
+        my %argp = (
+            c_type     => $type,
+            inout_type => $inout_type,
+            attr       => {
+                lineno => $self->fh->lineno,
+                stream => $self->fh->stream,
+            },
+        );
 
-            if ( defined( $argp{name} = $name ) ) {
+        if ( defined( $argp{name} = $name ) ) {
 
-                $argp{default} = $default;
+            $argp{default} = $default;
 
-            }
-            elsif ( defined( $argp{name} = $length_name ) ) {
+        }
+        elsif ( defined( $argp{name} = $length_name ) ) {
 
-                $self->error( 1, "Default value on length() argument: '$save'" )
-                  if defined $default;
+            $self->error( 1, "Default value on length() argument: '$save'" )
+              if defined $default;
 
-                $argp{length} = 1;
+            $argp{length} = 1;
 
-            }
-
-            elsif ( $_ eq '...' ) {
-
-                $argp{ellipsis} = 1;
-
-            }
-            else {
-
-                # can we actually get here?
-                $self->error( 1,
-                    "can't find type or name in argument: '$save'" );
-
-            }
-
-            $xsub->push_arg( $self->create_ast_element( 'XSub::Arg', \%argp ) );
         }
 
-    }
-    else {
+        elsif ( $_ eq '...' ) {
 
-        $self->warn(
-            "Cannot parse argument list '$saved_parameters', fallback to split\n"
-        ) if $self->argtypes;
+            $argp{ellipsis} = 1;
 
-        for ( split( /\s*,\s*/, $parameters ) ) {
+        }
+        else {
 
-            my ( $inout_type ) = s/$Re{XSUB_PARAMETER_INOUT}//x;
-            $inout_type ||= 'IN';
+            # can we actually get here?
+            $self->error( 1, "can't find type or name in argument: '$save'" );
 
-            $xsub->push_arg(
-                $self->create_ast_element(
-                    'XSub::Arg',
-                    {
-                        name       => $_,
-                        inout_type => $inout_type,
-                        attr       => {
-                            lineno => $self->fh->lineno,
-                            stream => $self->fh->stream,
-                        },
-                    },
-
-                ) );
         }
 
+        $xsub->push_arg( $self->create_ast_element( 'XSub::Arg', \%argp ) );
     }
 
     return;
