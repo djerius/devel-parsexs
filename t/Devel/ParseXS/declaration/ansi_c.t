@@ -1,6 +1,6 @@
 #! perl
 
-package t::Devel::ParseXS::declaration;
+package t::Devel::ParseXS::declaration::ansi_c;
 
 use strict;
 use warnings;
@@ -16,7 +16,7 @@ subtest 'ansi-c style' => sub {
 
     my $p = Devel::ParseXS->new;
 
-    is( exception { $p->parse_file( datafile( 'ansi_c.xs' ) ) },
+    is( exception { $p->parse_file( datafile( [-1], 'ansi_c.xs' ) ) },
         undef, 'open file' );
 
     my $xsubs = $p->tree->contents;
