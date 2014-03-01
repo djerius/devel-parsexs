@@ -459,7 +459,7 @@ sub parse_function_parameters {
 
         elsif ( $_ eq '...' ) {
 
-            $argp{ellipsis} = 1;
+            $argp{varargs} = 1;
 
         }
         else {
