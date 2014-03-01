@@ -8,7 +8,6 @@ use warnings;
 use Test::More;
 use Test::Fatal;
 use Data::Section -setup;
-use Safe::Isa;
 
 use Devel::ParseXS;
 
@@ -48,8 +47,7 @@ subtest 'pod' => sub {
 
         my $pod = $p->tree->contents->[0];
 
-        ok( defined $pod && $pod->$_isa( 'Devel::XS::AST::Pod' ),
-            'found pod' );
+        isa_ok( $pod,  'Devel::XS::AST::Pod', 'found pod' );
 
         is( $pod->attr->{lineno}, 7, 'pod starting line number' );
 

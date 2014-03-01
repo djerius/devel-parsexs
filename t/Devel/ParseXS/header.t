@@ -5,7 +5,6 @@ package t::Devel::ParseXS::header;
 use Test::More;
 use Test::Fatal;
 use Data::Section -setup;
-use Safe::Isa;
 
 use Devel::ParseXS;
 
@@ -27,20 +26,21 @@ subtest 'header ok' => sub {
 
     {
         my $element = $p->tree->contents->[ $idx++ ];
-        ok( $element->$_isa( 'Devel::XS::AST::Data' ), 'found data' )
+
+	isa_ok( $element, 'Devel::XS::AST::Data', 'found_data' )
           && is( $element->as_string, ${ data( 'data1' ) }, 'data1' );
     }
 
     {
         my $element = $p->tree->contents->[ $idx++ ];
 
-        ok( $element->$_isa( 'Devel::XS::AST::Pod' ), 'found pod' )
+        isa_ok( $element, 'Devel::XS::AST::Pod', 'found pod' )
           && is( $element->as_string, ${ data( 'pod' ) }, 'pod' );
     }
 
     {
         my $element = $p->tree->contents->[ $idx++ ];
-        ok( $element->$_isa( 'Devel::XS::AST::Data' ), 'found data' )
+        isa_ok( $element, 'Devel::XS::AST::Data', 'found data' )
           && is( $element->as_string, ${ data( 'data2' ) }, 'data2' );
     }
 

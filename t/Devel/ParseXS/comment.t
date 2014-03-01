@@ -8,7 +8,6 @@ use warnings;
 use Test::More;
 use Test::Fatal;
 use Data::Section -setup;
-use Safe::Isa;
 
 use Devel::ParseXS;
 
@@ -49,11 +48,10 @@ subtest 'comments only' => sub {
 
         my $comment = $p->tree->contents->[0];
 
-        ok( defined $comment && $comment->$_isa( 'Devel::XS::AST::Comment' ),
-            'found comment' );
-
-        is( $comment->attr->{lineno}, 7, 'comment starting line number' );
-
+        isa_ok( $comment,  'Devel::XS::AST::Comment', 'found comment' )
+	    &&
+		is( $comment->attr->{lineno}, 7, 'comment starting line number' )
+		    &&
         is(
             $comment->as_string,
             ${ __PACKAGE__->section_data( 'comments only' ) },
@@ -107,8 +105,7 @@ subtest 'comments+cpp' => sub {
     my $comment = $p->tree->contents->[0];
 
     my $found_comments
-      = ok( defined $comment && $comment->$_isa( 'Devel::XS::AST::Comment' ),
-        'found comment' );
+      = isa_ok( $comment,  'Devel::XS::AST::Comment', 'found comment' );
 
   SKIP: {
 
