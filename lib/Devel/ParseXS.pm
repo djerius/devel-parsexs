@@ -263,9 +263,6 @@ sub parse_xsub {
 
     $self->parse_declaration( $xsub );
 
-    $fh->readline
-      or $self->error( 0, "function definition too short\n" );
-
     $self->stash( $xsub );
     $self->push_context( $xsub );
 
