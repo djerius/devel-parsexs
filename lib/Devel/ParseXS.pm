@@ -358,7 +358,7 @@ sub parse_declaration {
     $xsub->return_type( $return_type );
 
     $self->fh->readline( { clean_record => 1 } )
-      or $self->error( $self->fh->lineno, "function definition too short\n" );
+      or $self->error( 0, "function definition too short\n" );
 
     # parse class? func_name( parameters ) (const)?
     my $matched = my ( $class, $func_name, $parameters, $const ) = /^
@@ -371,7 +371,7 @@ sub parse_declaration {
      \s*(;\s*)?      	   # trailing scruff
      $/sx;
 
-    $self->error( 1, "not a function declaration: $_\n" )
+    $self->error( 0, "not a function declaration: $_\n" )
       unless $matched;
 
     $class = "$const $class" if $const;
@@ -447,7 +447,7 @@ sub parse_function_parameters {
         }
         elsif ( defined( $argp{name} = $length_name ) ) {
 
-            $self->error( 1, "Default value on length() argument: '$save'" )
+            $self->error( 0, "Default value on length() argument: '$save'" )
               if defined $default;
 
             $argp{length} = 1;
@@ -462,7 +462,7 @@ sub parse_function_parameters {
         else {
 
             # can we actually get here?
-            $self->error( 1, "can't find type or name in argument: '$save'" );
+            $self->error( 0, "can't find type or name in argument: '$save'" );
 
         }
 
@@ -627,16 +627,14 @@ sub error {
 
     my ( $self, $lineno ) = ( shift, shift );
 
-    croak( $self->fh->filename, $lineno ? ( ': ', $self->fh->lineno ) : (),
-        ': ', @_ );
+    croak( $self->fh->filename, ': ', $lineno || $self->fh->lineno, ': ', @_ );
 }
 
 sub warn {
 
     my ( $self, $lineno ) = ( shift, shift );
 
-    carp( $self->fh->filename, $lineno ? ( ': ', $self->fh->lineno ) : (),
-        ': ', @_ );
+    carp( $self->fh->filename, ': ', $lineno || $self->fh->lineno, ': ', @_ );
 }
 
 sub create_ast_element {
