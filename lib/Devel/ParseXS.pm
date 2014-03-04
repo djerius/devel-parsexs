@@ -686,7 +686,7 @@ sub process_INPUT {
 
             my ( $init_type, $init_value );
             # extract possible initialization symbol and value;
-            if ( s/([=;+])(.*)$// ) {
+            if ( s/\s*([=;+])(.*)$// ) {
 
                 ( $init_type, $init_value ) = ( $1, $2 );
 
@@ -712,6 +712,7 @@ sub process_INPUT {
 	     (\w+)        # variable name
 	     $/sx
               or $self->error( $lineno, "invalid parameter definition '$ln'" );
+
 	    $c_type = ExtUtils::Typemaps::tidy_type($c_type);
 
 	    $self->error( 0, "invalid variable definition: $_\n" )
