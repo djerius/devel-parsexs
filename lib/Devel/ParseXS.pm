@@ -433,17 +433,20 @@ sub parse_function_parameters {
         s/^\s* ( [^=]*? ) \s* (?: = \s* (.*?)\s* )?$/$1/x;
         my $default = $2;
 
-        # param may be 'type name | name | length(name)'
-        my ( $type, $name, $length_name ) = /
-		    (.*?)                         # type
-		    \s* \b (?:
+        # param may be 'type (&)?name | name | length(name)'
+        my ( $c_type, $pass_addr, $name, $length_name ) = /
+		    (.*?)                         # C type
+		    \s*
+		    (\&?)   			  # pass addr
+		    \s*\b (?:
 			(\w+)                     # name
 		    | length\( \s*(\w+)\s* \)     # length( name )
 		    ) \s* $ /x;
 
+	$self->error( 0, "invalid variable definition: $save\n" )
+	    if length($pass_addr) && ! (length($c_type) && defined $name );
 
         my %argp = (
-            c_type     => $type,
             inout_type => $inout_type,
             attr       => {
                 lineno => $self->fh->lineno,
@@ -453,15 +456,37 @@ sub parse_function_parameters {
 
         if ( defined( $argp{name} = $name ) ) {
 
-            $argp{default} = $default;
+            if ( defined $default ) {
+
+                if ( $default eq 'NO_INIT' ) {
+
+                    $argp{optional} = 1;
+
+                }
+
+		elsif ( length $default ) {
+
+		    $argp{default} = $default;
+
+		}
+
+		else {
+		    $self->error( 0, "incomplete default specification for '$name'\n" )
+		}
+
+            }
+
+	    if ( length $c_type ) {
+		$argp{c_type} = ExtUtils::Typemaps::tidy_type($c_type);
+		$argp{in_declaration} = 1;
+		$argp{pass_addr} = $pass_addr;
+	    }
 
         }
-        elsif ( defined( $argp{name} = $length_name ) ) {
+        elsif ( defined( $argp{length_name} = $length_name ) ) {
 
             $self->error( 0, "Default value on length() argument: '$save'" )
               if defined $default;
-
-            $argp{length} = 1;
 
         }
 
@@ -473,7 +498,7 @@ sub parse_function_parameters {
         else {
 
             # can we actually get here?
-            $self->error( 0, "can't find type or name in argument: '$save'" );
+            $self->error( 0, "internal error: can't find type or name in argument: '$save'" );
 
         }
 
@@ -632,6 +657,112 @@ sub handle_BOOT {
             } ) );
 
     return 1;
+}
+
+sub process_INPUT {
+
+    my ( $self, $input ) = @_;
+
+    my $xsub = $self->context;
+
+    $self->error( $input->attr->{lineno}, "internal error; popped(INPUT) but context is not XSub\n" )
+	unless $xsub->isa( 'Devel::XS::AST::XSub' );
+
+    local $_;
+
+    for my $element ( @{ $input->contents } ) {
+
+        next unless $element->isa( 'Devel::XS::AST::Data' );
+
+        my $lineno = $element->attr->{lineno};
+
+        for ( @{ $element->contents } ) {
+
+	    my $ln = $_;
+
+            s/^\s*|\s*$//g;
+
+            next unless length;
+
+            my ( $init_type, $init_value );
+            # extract possible initialization symbol and value;
+            if ( s/([=;+])(.*)$// ) {
+
+                ( $init_type, $init_value ) = ( $1, $2 );
+
+                $init_value =~ s/^\s*|\s*$//g;
+
+                # if the init_type is ';', a zero length init_value means
+                # it's just a semi-colon, nothing more
+                unless ( length( $init_value ) ) {
+
+                    $self->croak( $lineno, "missing variable initialization" )
+                      unless ';' eq $init_type;
+
+                    undef $init_type;
+                }
+
+            }
+
+            my ( $c_type, $pass_addr, $name ) = /^
+	     (.*?)        # C type
+	     \s*
+	     (\&?)        # pass addr
+	     \s*\b
+	     (\w+)        # variable name
+	     $/sx
+              or $self->error( $lineno, "invalid parameter definition '$ln'" );
+	    $c_type = ExtUtils::Typemaps::tidy_type($c_type);
+
+	    $self->error( 0, "invalid variable definition: $_\n" )
+		unless length( $c_type ) && length ( $name );
+
+		$DB::single=1;
+
+	    # if the variable name matches something in the
+	    # declaration, check it against the declaration.
+	    if ( defined ( my $arg = $xsub->arg( $name ) ) ) {
+
+		if ( defined $arg->c_type ) {
+
+		    my ( $ofile, $olineno );
+
+		    if ( $arg->in_declaration ) {
+			$ofile   = $arg->attr->{stream}->filename;
+			$olineno = $arg->attr->{lineno};
+		    }
+
+		    else {
+
+			$ofile  = $arg->input->attr->{stream}->filename;
+			$olineno = $arg->attr->{input_lineno};
+		    }
+
+		    $self->error( $lineno, "duplicate definition of '$name'. ",
+				  "original is at $ofile: $olineno\n" )
+
+		}
+
+		else {
+
+		    $arg->c_type( $c_type );
+		    $arg->pass_addr( $pass_addr );
+		    $arg->input( $input );
+		    $arg->attr->{input_lineno} = $lineno;
+		}
+
+	    }
+
+	}
+
+        continue {
+
+            $lineno++;
+
+        }
+
+    }
+
 }
 
 sub error {

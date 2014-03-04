@@ -9,6 +9,9 @@ use Safe::Isa;
 
 use Class::Tiny {
 
+    # additional attributes not managed by class
+    attr => sub { {} },
+
     contents => sub { [] },
 
 };

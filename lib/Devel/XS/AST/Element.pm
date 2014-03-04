@@ -46,5 +46,10 @@ sub last {
 
 }
 
+sub count {
+
+    return scalar @{ $_[0]->contents };
+
+}
 
 1;
