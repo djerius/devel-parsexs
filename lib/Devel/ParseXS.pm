@@ -122,12 +122,11 @@ sub pop_context {
 
     my $context = pop @{ $self->_context };
 
-    my $postprocess = eval { $context->attr->{postprocess} };
+    my $sub = $context->attr->{postprocess} && $self->can($context->attr->{postprocess});
 
-    if( $postprocess && (my $sub = $self->can($postprocess) ) ) {
+    $sub->( $self, $context )
+	if $sub;
 
-	$sub->( $self, $context )
-    }
 
     return;
 }
