@@ -717,8 +717,6 @@ sub process_INPUT {
 	    $self->error( 0, "invalid variable definition: $_\n" )
 		unless length( $c_type ) && length ( $name );
 
-		$DB::single=1;
-
 	    # if the variable name matches something in the
 	    # declaration, check it against the declaration.
 	    if ( defined ( my $arg = $xsub->arg( $name ) ) ) {
