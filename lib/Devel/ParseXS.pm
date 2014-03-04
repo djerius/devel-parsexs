@@ -147,7 +147,7 @@ sub stash {
 
     my $self = shift;
 
-    @_ > 1 && croak( "illegal stash of more than one object\n" );
+    @_ > 1 && $self->error( 0, "illegal stash of more than one object\n" );
 
     $self->context->push( $_[0] );
 
@@ -214,7 +214,7 @@ sub parse_header {
 
     }
 
-    croak( $fh->lineno, "Didn't find a 'MODULE ... PACKAGE ... PREFIX' line\n" )
+    $self->error( 0, "Didn't find a 'MODULE ... PACKAGE ... PREFIX' line\n" )
       unless $found_module;
 
     return;
@@ -695,7 +695,7 @@ sub process_INPUT {
                 # it's just a semi-colon, nothing more
                 unless ( length( $init_value ) ) {
 
-                    $self->croak( $lineno, "missing variable initialization" )
+                    $self->error( $lineno, "missing variable initialization" )
                       unless ';' eq $init_type;
 
                     undef $init_type;
@@ -785,7 +785,7 @@ sub create_ast_element {
 
     my @missing = grep { !defined $attr->{attr}{$_} } qw[ lineno stream ];
 
-    croak( "missing attribute(s) for object of class $class: @missing\n" )
+    $self->error( 0, "missing attribute(s) for object of class $class: @missing\n" )
       if @missing;
 
     return $class->new( $attr );
