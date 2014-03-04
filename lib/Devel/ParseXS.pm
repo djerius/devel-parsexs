@@ -118,7 +118,16 @@ sub push_context {
 
 sub pop_context {
 
-    pop @{ $_[0]->_context };
+    my $self = shift;
+
+    my $context = pop @{ $self->_context };
+
+    my $postprocess = eval { $context->attr->{postprocess} };
+
+    if( $postprocess && (my $sub = $self->can($postprocess) ) ) {
+
+	$sub->( $self, $context )
+    }
 
     return;
 }
@@ -273,6 +282,7 @@ sub parse_xsub {
             attr => {
                 lineno => $fh->lineno,
                 stream => $fh->stream,
+	   postprocess => 'process_INPUT',
             },
         } );
     $self->stash( $input );
@@ -296,6 +306,7 @@ sub parse_xsub {
                     attr => {
                         lineno => $fh->lineno,
                         stream => $fh->stream,
+			postprocess => "process_$1",
                     },
                     value => $2
                 } );
