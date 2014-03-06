@@ -12,7 +12,6 @@ use ExtUtils::Typemaps qw[ tidy_type ];
 
 use Devel::ParseXS::Stream;
 
-use Devel::XS::AST;
 use Devel::XS::AST::Comment;
 use Devel::XS::AST::Data;
 use Devel::XS::AST::Keyword;
@@ -96,7 +95,7 @@ use Class::Tiny
   qw[ fh module package packid prefix _context ],
   {
     fh       => sub { Devel::ParseXS::Stream->new },
-    tree     => sub { Devel::XS::AST->new },
+    tree     => sub { Devel::XS::AST::Element::Container->new },
     _context => sub { [undef] },
   };
 
