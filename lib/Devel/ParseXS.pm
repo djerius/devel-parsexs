@@ -682,13 +682,20 @@ sub process_INPUT {
 
             next unless length;
 
+	    # by default initialize the argument, either implicitly
+	    # from the Perl stack, or explicitly from a value
+	    # specified in the argument specification.
+
+	    my $init_arg = 1;
             my ( $init_type, $init_value );
             # extract possible initialization symbol and value;
             if ( s/\s*([=;+])(.*)$// ) {
 
-                ( $init_type, $init_value ) = ( $1, $2 );
+		$init_type = { '=' => 'replace',
+			       ';' => 'replace_later',
+			       '+' => 'add_later' }->{$1};
 
-                $init_value =~ s/^\s*|\s*$//g;
+                ( $init_value = $2 ) =~ s/^\s*|\s*$//g;
 
                 # if the init_type is ';', a zero length init_value means
                 # it's just a semi-colon, nothing more
@@ -699,6 +706,15 @@ sub process_INPUT {
 
                     undef $init_type;
                 }
+
+		if ( $init_value eq 'NO_INIT' ) {
+
+		    $self->error( $lineno, "an initialization value of '+ NO_INIT' makes no sense\n" )
+			if $init_type eq 'add_later';
+
+		    undef  $init_value;
+		    $init_arg = 0;
+		}
 
             }
 
@@ -718,6 +734,18 @@ sub process_INPUT {
 
 	    # if the variable name matches something in the
 	    # declaration, check it against the declaration.
+	    # otherwise it's something we don't care about.
+	    #
+	    # FIXME: is this really true?  From perlxs:
+	    #
+	    #    Since INPUT sections allow declaration of C variables
+	    #    which do not appear in the parameter list of a
+	    #    subroutine...
+	    #
+	    # If those variables have initialization code, is it
+	    # parsed (and eval'd) or is it just left up to the C
+	    # compiler?
+
 	    if ( defined ( my $arg = $xsub->arg( $name ) ) ) {
 
 		if ( defined $arg->c_type ) {
@@ -746,6 +774,9 @@ sub process_INPUT {
 		    $arg->pass_addr( $pass_addr );
 		    $arg->input( $input );
 		    $arg->attr->{input_lineno} = $lineno;
+		    $arg->init_arg( $init_arg );
+		    $arg->init_type( $init_type );
+		    $arg->init_value( $init_value );
 		}
 
 	    }

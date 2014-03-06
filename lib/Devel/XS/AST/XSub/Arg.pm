@@ -18,6 +18,10 @@ use Class::Tiny (
     'varargs',        # true if this is a varargs entry
     'input',          # if in_declaration is false, this points to the
                       # INPUT section where the type is defined
+    'init_arg',       # true if the argument should be initialized
+    'init_type',      # how to apply initialization 'replace', 'replace_later', 'add_later'
+    'init_value',     # what to intialize the argument to
+
 );
 
 
