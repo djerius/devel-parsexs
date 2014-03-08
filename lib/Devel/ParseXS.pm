@@ -16,6 +16,7 @@ use Devel::XS::AST::Comment;
 use Devel::XS::AST::Data;
 use Devel::XS::AST::Keyword;
 use Devel::XS::AST::Pod;
+use Devel::XS::AST::Typemap;
 use Devel::XS::AST::XSub;
 use Devel::XS::AST::XSub::Arg;
 use Devel::XS::AST::XSub::Section;
@@ -39,7 +40,7 @@ our %Re = (
       qr/^MODULE\s*=\s*([\w:]+)(?:\s+PACKAGE\s*=\s*([\w:]+))?(?:\s+PREFIX\s*=\s*(\S+))?\s*$/,
 
     GKEYWORDS =>
-      qr/BOOT|REQUIRE|PROTOTYPES|EXPORT_XSUB_SYMBOLS|FALLBACK|VERSIONCHECK|INCLUDE(?:_COMMAND)?|SCOPE/,
+      qr/BOOT|REQUIRE|PROTOTYPES|EXPORT_XSUB_SYMBOLS|FALLBACK|VERSIONCHECK|INCLUDE(?:_COMMAND)?|SCOPE|TYPEMAP/,
 
     XSUB_SECTION =>
       qr/ALIAS|C_ARGS|CASE|CLEANUP|CODE|INIT|INPUT|INTERFACE(?:_MACRO)?|OVERLOAD|OUTPUT|PPCODE|PREINIT|POSTCALL|PROTOTYPE/,
@@ -654,6 +655,49 @@ sub handle_BOOT {
     $self->stash(
         $self->create_ast_element(
             'Boot',
+            {
+                attr     => \%attr,
+                contents => \@contents,
+            } ) );
+
+    return 1;
+}
+
+sub handle_TYPEMAP {
+
+    my ( $self, $arg ) = @_;
+
+    my $fh = $self->fh;
+
+    my %attr = (
+        lineno => $fh->lineno,
+        stream => $fh->stream
+    );
+
+    $arg =~ /^<<\s*
+		(?:
+		    (["'])(.+?)\1  # balanced quoted token
+		   |([^\s'"]+)     # unquoted token
+		)
+		\s*
+		;?                 # possible trailing ;
+		\s*$/x;
+
+    my $end_marker = quotemeta( defined( $1 ) ? $2 : $3 );
+
+    my @contents;
+    while ( $fh->readline ) {
+
+        last if /^$end_marker\s*$/;
+        push @contents, $_;
+    }
+
+    $self->error( 0, "Unterminated typemap" )
+      if !defined $_;
+
+    $self->stash(
+        $self->create_ast_element(
+            'Typemap',
             {
                 attr     => \%attr,
                 contents => \@contents,
