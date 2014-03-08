@@ -121,10 +121,11 @@ sub pop_context {
 
     my $context = pop @{ $self->_context };
 
-    my $sub = $context->attr->{postprocess} && $self->can($context->attr->{postprocess});
+    my $sub = $context->attr->{postprocess}
+      && $self->can( $context->attr->{postprocess} );
 
     $sub->( $self, $context )
-	if $sub;
+      if $sub;
 
 
     return;
@@ -278,9 +279,9 @@ sub parse_xsub {
         'XSub::INPUT',
         {
             attr => {
-                lineno => $fh->lineno,
-                stream => $fh->stream,
-	   postprocess => 'process_INPUT',
+                lineno      => $fh->lineno,
+                stream      => $fh->stream,
+                postprocess => 'process_INPUT',
             },
         } );
     $self->stash( $input );
@@ -302,9 +303,9 @@ sub parse_xsub {
                 "XSub::$1",
                 {
                     attr => {
-                        lineno => $fh->lineno,
-                        stream => $fh->stream,
-			postprocess => "process_$1",
+                        lineno      => $fh->lineno,
+                        stream      => $fh->stream,
+                        postprocess => "process_$1",
                     },
                     value => $2
                 } );
@@ -358,7 +359,7 @@ sub parse_declaration {
     {
 
         $return_type = $1;
-	# replace original line with func_name(...). this keeps the correct line number
+        # replace original line with func_name(...). this keeps the correct line number
         $self->fh->pushline( $2 );
     }
     $xsub->externC( 1 ) if $return_type =~ s/^extern "C"\s+//;
@@ -413,7 +414,8 @@ sub parse_function_parameters {
     # vs. old-style declarations; the code should be robust enough to
     # handle either.
 
-    if ( $parameters !~ /( $Re{XSUB_PARAMETER} , )* $/x && $parameters =~ /\S/ )  {
+    if ( $parameters !~ /( $Re{XSUB_PARAMETER} , )* $/x && $parameters =~ /\S/ )
+    {
 
         $self->error( 0,
             "Unable to parse function declarations: $parameters\n" );
@@ -441,8 +443,8 @@ sub parse_function_parameters {
 		    | length\( \s*(\w+)\s* \)     # length( name )
 		    ) \s* $ /x;
 
-	$self->error( 0, "invalid variable definition: $save\n" )
-	    if length($pass_addr) && ! (length($c_type) && defined $name );
+        $self->error( 0, "invalid variable definition: $save\n" )
+          if length( $pass_addr ) && !( length( $c_type ) && defined $name );
 
         my %argp = (
             inout_type => $inout_type,
@@ -462,23 +464,24 @@ sub parse_function_parameters {
 
                 }
 
-		elsif ( length $default ) {
+                elsif ( length $default ) {
 
-		    $argp{default} = $default;
+                    $argp{default} = $default;
 
-		}
+                }
 
-		else {
-		    $self->error( 0, "incomplete default specification for '$name'\n" )
-		}
+                else {
+                    $self->error( 0,
+                        "incomplete default specification for '$name'\n" );
+                }
 
             }
 
-	    if ( length $c_type ) {
-		$argp{c_type} = ExtUtils::Typemaps::tidy_type($c_type);
-		$argp{in_declaration} = 1;
-		$argp{pass_addr} = $pass_addr;
-	    }
+            if ( length $c_type ) {
+                $argp{c_type} = ExtUtils::Typemaps::tidy_type( $c_type );
+                $argp{in_declaration} = 1;
+                $argp{pass_addr}      = $pass_addr;
+            }
 
         }
         elsif ( defined( $argp{length_name} = $length_name ) ) {
@@ -496,7 +499,9 @@ sub parse_function_parameters {
         else {
 
             # can we actually get here?
-            $self->error( 0, "internal error: can't find type or name in argument: '$save'" );
+            $self->error( 0,
+                "internal error: can't find type or name in argument: '$save'"
+            );
 
         }
 
@@ -663,8 +668,9 @@ sub process_INPUT {
 
     my $xsub = $self->context;
 
-    $self->error( $input->attr->{lineno}, "internal error; popped(INPUT) but context is not XSub\n" )
-	unless $xsub->isa( 'Devel::XS::AST::XSub' );
+    $self->error( $input->attr->{lineno},
+        "internal error; popped(INPUT) but context is not XSub\n" )
+      unless $xsub->isa( 'Devel::XS::AST::XSub' );
 
     local $_;
 
@@ -676,24 +682,26 @@ sub process_INPUT {
 
         for ( @{ $element->contents } ) {
 
-	    my $ln = $_;
+            my $ln = $_;
 
             s/^\s*|\s*$//g;
 
             next unless length;
 
-	    # by default initialize the argument, either implicitly
-	    # from the Perl stack, or explicitly from a value
-	    # specified in the argument specification.
+            # by default initialize the argument, either implicitly
+            # from the Perl stack, or explicitly from a value
+            # specified in the argument specification.
 
-	    my $init_arg = 1;
+            my $init_arg = 1;
             my ( $init_type, $init_value );
             # extract possible initialization symbol and value;
             if ( s/\s*([=;+])(.*)$// ) {
 
-		$init_type = { '=' => 'replace',
-			       ';' => 'replace_later',
-			       '+' => 'add_later' }->{$1};
+                $init_type = {
+                    '=' => 'replace',
+                    ';' => 'replace_later',
+                    '+' => 'add_later'
+                }->{$1};
 
                 ( $init_value = $2 ) =~ s/^\s*|\s*$//g;
 
@@ -707,14 +715,15 @@ sub process_INPUT {
                     undef $init_type;
                 }
 
-		if ( $init_value eq 'NO_INIT' ) {
+                if ( $init_value eq 'NO_INIT' ) {
 
-		    $self->error( $lineno, "an initialization value of '+ NO_INIT' makes no sense\n" )
-			if $init_type eq 'add_later';
+                    $self->error( $lineno,
+                        "an initialization value of '+ NO_INIT' makes no sense\n"
+                    ) if $init_type eq 'add_later';
 
-		    undef  $init_value;
-		    $init_arg = 0;
-		}
+                    undef $init_value;
+                    $init_arg = 0;
+                }
 
             }
 
@@ -727,61 +736,64 @@ sub process_INPUT {
 	     $/sx
               or $self->error( $lineno, "invalid parameter definition '$ln'" );
 
-	    $c_type = ExtUtils::Typemaps::tidy_type($c_type);
+            $c_type = ExtUtils::Typemaps::tidy_type( $c_type );
 
-	    $self->error( 0, "invalid variable definition: $_\n" )
-		unless length( $c_type ) && length ( $name );
+            $self->error( 0, "invalid variable definition: $_\n" )
+              unless length( $c_type ) && length( $name );
 
-	    # if the variable name matches something in the
-	    # declaration, check it against the declaration.
-	    # otherwise it's something we don't care about.
-	    #
-	    # FIXME: is this really true?  From perlxs:
-	    #
-	    #    Since INPUT sections allow declaration of C variables
-	    #    which do not appear in the parameter list of a
-	    #    subroutine...
-	    #
-	    # If those variables have initialization code, is it
-	    # parsed (and eval'd) or is it just left up to the C
-	    # compiler?
+            # if the variable name matches something in the
+            # declaration, check it against the declaration.
+            # otherwise it's something we don't care about.
+            #
+            # FIXME: is this really true?  From perlxs:
+            #
+            #    Since INPUT sections allow declaration of C variables
+            #    which do not appear in the parameter list of a
+            #    subroutine...
+            #
+            # If those variables have initialization code, is it
+            # parsed (and eval'd) or is it just left up to the C
+            # compiler?
 
-	    if ( defined ( my $arg = $xsub->arg( $name ) ) ) {
+            if ( defined( my $arg = $xsub->arg( $name ) ) ) {
 
-		if ( defined $arg->c_type ) {
+                if ( defined $arg->c_type ) {
 
-		    my ( $ofile, $olineno );
+                    my ( $ofile, $olineno );
 
-		    if ( $arg->in_declaration ) {
-			$ofile   = $arg->attr->{stream}->filename;
-			$olineno = $arg->attr->{lineno};
-		    }
+                    if ( $arg->in_declaration ) {
+                        $ofile   = $arg->attr->{stream}->filename;
+                        $olineno = $arg->attr->{lineno};
+                    }
 
-		    else {
+                    else {
 
-			$ofile  = $arg->input->attr->{stream}->filename;
-			$olineno = $arg->attr->{input_lineno};
-		    }
+                        $ofile   = $arg->input->attr->{stream}->filename;
+                        $olineno = $arg->attr->{input_lineno};
+                    }
 
-		    $self->error( $lineno, "duplicate definition of '$name'. ",
-				  "original is at $ofile: $olineno\n" )
+                    $self->error(
+                        $lineno,
+                        "duplicate definition of '$name'. ",
+                        "original is at $ofile: $olineno\n"
+                      )
 
-		}
+                }
 
-		else {
+                else {
 
-		    $arg->c_type( $c_type );
-		    $arg->pass_addr( $pass_addr );
-		    $arg->input( $input );
-		    $arg->attr->{input_lineno} = $lineno;
-		    $arg->init_arg( $init_arg );
-		    $arg->init_type( $init_type );
-		    $arg->init_value( $init_value );
-		}
+                    $arg->c_type( $c_type );
+                    $arg->pass_addr( $pass_addr );
+                    $arg->input( $input );
+                    $arg->attr->{input_lineno} = $lineno;
+                    $arg->init_arg( $init_arg );
+                    $arg->init_type( $init_type );
+                    $arg->init_value( $init_value );
+                }
 
-	    }
+            }
 
-	}
+        }
 
         continue {
 
@@ -815,7 +827,8 @@ sub create_ast_element {
 
     my @missing = grep { !defined $attr->{attr}{$_} } qw[ lineno stream ];
 
-    $self->error( 0, "missing attribute(s) for object of class $class: @missing\n" )
+    $self->error( 0,
+        "missing attribute(s) for object of class $class: @missing\n" )
       if @missing;
 
     return $class->new( $attr );
