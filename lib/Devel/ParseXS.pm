@@ -653,7 +653,7 @@ sub handle_BOOT {
 
     $self->stash(
         $self->create_ast_element(
-            'BOOT',
+            'Boot',
             {
                 attr     => \%attr,
                 contents => \@contents,
