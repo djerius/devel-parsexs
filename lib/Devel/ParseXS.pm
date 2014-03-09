@@ -10,7 +10,7 @@ use Carp;
 
 use Safe::Isa;
 
-use ExtUtils::Typemaps qw[ tidy_type ];
+use ExtUtils::Typemaps;
 
 use Devel::ParseXS::Stream;
 
