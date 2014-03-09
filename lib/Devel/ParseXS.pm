@@ -12,6 +12,7 @@ use ExtUtils::Typemaps qw[ tidy_type ];
 
 use Devel::ParseXS::Stream;
 
+use Devel::XS::AST::Element::Container;
 use Devel::XS::AST::Comment;
 use Devel::XS::AST::Data;
 use Devel::XS::AST::Keyword;
