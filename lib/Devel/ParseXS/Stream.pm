@@ -177,7 +177,7 @@ sub readline {
         return 1;
     }
 
-    return $_ = undef;
+    return ( @_ ? $_[0] : $_ ) = undef;
 }
 
 
@@ -265,7 +265,7 @@ sub _readline {
     # easier to just toss the old object.
     $self->_line( Devel::ParseXS::Stream::Line->new );
 
-    return $_ = undef;
+    return ( @_ ? $_[0] : $_ ) = undef;
 }
 
 sub lineno {
