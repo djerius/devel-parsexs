@@ -244,6 +244,8 @@ sub parse_body {
 
         next if $self->parse_keyword;
 
+        next if $self->parse_MODULE;
+
         # we're now handling an XSUB
 
         $self->parse_xsub;
