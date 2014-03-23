@@ -213,7 +213,7 @@ sub parse_header {
 
         next if $self->parse_pod;
 
-        $found_module = 1, last if $self->handle_MODULE;
+        $found_module = 1, last if $self->parse_MODULE;
 
         $self->stash_data( $_ );
 
@@ -240,9 +240,9 @@ sub parse_body {
 
         next if $self->parse_comment;
 
-        next if $self->handle_keyword( $Re{GKEYWORDS} );
-
 	next if $self->parse_cpp;
+
+        next if $self->parse_keyword;
 
         # we're now handling an XSUB
 
@@ -364,7 +364,8 @@ sub parse_declaration {
     {
 
         $return_type = $1;
-        # replace original line with func_name(...). this keeps the correct line number
+        # replace original line with func_name(...). this keeps the
+        # correct line number
         $self->fh->pushline( $2 );
     }
     $xsub->externC( 1 ) if $return_type =~ s/^extern "C"\s+//;
@@ -620,12 +621,12 @@ sub parse_cpp {
     return;
 }
 
-sub handle_keyword {
+sub parse_keyword {
 
     my ( $self, $re ) = @_;
 
     return
-      unless my ( $kwd, $arg ) = /^\s*($re)\s*:\s*(?:#.*)?(.*)/;
+      unless my ( $kwd, $arg ) = /^\s*($Re{GKEYWORDS})\s*:\s*(?:#.*)?(.*)/;
 
     my $handler = 'handle_' . $kwd;
 
@@ -647,7 +648,7 @@ sub handle_keyword {
     return 1;
 }
 
-sub handle_MODULE {
+sub parse_MODULE {
 
     my $self = shift;
 
