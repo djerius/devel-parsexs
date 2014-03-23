@@ -19,10 +19,10 @@ subtest 'ansi-c style' => sub {
     is( exception { $p->parse_file( datafile( [-1], 'ansi_c.xs' ) ) },
         undef, 'open file' );
 
-    my $module = shift @{$p->tree->contents};
-    isa_ok ( $module, 'Devel::XS::AST::Module', 'module' );
+    my $tree = $p->tree;
 
-    my $xsubs = $p->tree->contents;
+    my $module = $tree->shift;
+    isa_ok ( $module, 'Devel::XS::AST::Module', 'module' );
 
     for my $spec (
         [ 'char *', 'func', ],
@@ -54,19 +54,17 @@ subtest 'ansi-c style' => sub {
 
         subtest $name => sub {
 
-            my $xsub = shift @{$xsubs};
+            my $xsub = $tree->shift;
             isa_ok( $xsub, 'Devel::XS::AST::XSub', "xsub" );
 
             is( $xsub->func_name,   $name,        'name' );
             is( $xsub->return_type, $return_type, 'return type' );
 
-            my $pars = $xsub->args->contents;
-
             for my $exp ( @pars ) {
 
 		my ( $type, $name, $default ) = @$exp;
 
-                my $par = shift @{$pars};
+                my $par = $xsub->args->shift;
                 isa_ok( $par, 'Devel::XS::AST::XSub::Arg', 'arg 1 ast type' );
 
                 if ( $exp->[0] eq '...' ) {
@@ -82,7 +80,7 @@ subtest 'ansi-c style' => sub {
                 }
             }
 
-            is( scalar @{$pars}, 0, 'no remaining parameters' );
+            is( $xsub->args->count, 0, 'no remaining parameters' );
 
         };
 
@@ -90,7 +88,7 @@ subtest 'ansi-c style' => sub {
     }
 
 
-    is( scalar @{$xsubs}, 0, 'no remaining functions' );
+    is( $tree->count, 0, 'no remaining functions' );
 
 };
 

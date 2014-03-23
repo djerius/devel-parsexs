@@ -22,24 +22,22 @@ subtest 'header ok' => sub {
         'parse pod'
     );
 
-    my $idx = 0;
-
     {
-        my $element = $p->tree->contents->[ $idx++ ];
+        my $element = $p->tree->shift;
 
 	isa_ok( $element, 'Devel::XS::AST::Data', 'found_data' )
           && is( $element->as_string, ${ data( 'data1' ) }, 'data1' );
     }
 
     {
-        my $element = $p->tree->contents->[ $idx++ ];
+        my $element = $p->tree->shift;
 
         isa_ok( $element, 'Devel::XS::AST::Pod', 'found pod' )
           && is( $element->as_string, ${ data( 'pod' ) }, 'pod' );
     }
 
     {
-        my $element = $p->tree->contents->[ $idx++ ];
+        my $element = $p->tree->shift;
         isa_ok( $element, 'Devel::XS::AST::Data', 'found data' )
           && is( $element->as_string, ${ data( 'data2' ) }, 'data2' );
     }

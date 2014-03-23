@@ -25,7 +25,7 @@ for my $section ( grep { /:input/ } __PACKAGE__->section_data_names ) {
 
         $p->parse_body;
 
-        my $typemap = $p->tree->contents->[0];
+        my $typemap = $p->tree->first;
 
         isa_ok( $typemap, 'Devel::XS::AST::Typemap', 'parsed typemap section' );
         is( join( "\n", @{ $typemap->contents }, '' ),

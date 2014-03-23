@@ -3,40 +3,47 @@ package Devel::XS::AST::Element::Container;
 use strict;
 use warnings;
 
-use parent 'Devel::XS::AST::Element';
+use parent 'Devel::XS::AST::Element::MixedBag';
 
 use Carp;
 use Safe::Isa;
 
+use constant CLASS => 'Devel::XS::AST::Element';
 
-use Class::Tiny
-    {
-	contents => sub { [] },
-    };
+sub BUILD {
+
+    my $self = shift;
+
+    croak( "contents array must contain only objects of class @{[ CLASS ]}\n" )
+	if grep { !$_->$_isa( CLASS ) } @{ $self->contents };
+
+    return;
+}
 
 sub push {
 
     my $self = shift;
 
-    croak( "attempt to push a non Devel::XS::AST::Element\n" )
-	if grep { ! $_->$_isa( 'Devel::XS::AST::Element' ) } @_;
+    croak( "attempt to push something not an object of @{[ CLASS ]}\n" )
+	if grep { ! $_->$_isa( CLASS ) } @_;
 
-    push @{ $self->contents }, @_;
+    $self->SUPER::push( @_ );
 
     return;
 }
 
-sub last {
+sub unshift {
 
-    return $_[0]->contents->[-1];
+    my $self = shift;
 
+    croak( "attempt to unshift something not an object of @{[ CLASS ]}\n" )
+	if grep { ! $_->$_isa( CLASS ) } @_;
+
+    $self->SUPER::unshift( @_ );
+
+    return;
 }
 
-sub count {
-
-    return scalar @{ $_[0]->contents };
-
-}
 
 1;
 
@@ -52,49 +59,17 @@ Devel::XS::AST::Element::Container - A set of Devel::XS::AST::Element objects
   use Devel::XS::AST::Element::Container;
   $c = Devel::XS::AST::Element::Container->new( contents => \@contents );
 
-  $c->push( $element );
-
-
 =head1 DESCRIPTION
 
 B<Devel::XS::AST::Element::Container> is a subclass of
-B<L<Devel::XS::AST::Element>> which is meant to contain a set of them.
+B<L<Devel::XS::AST::Element::MixedBag>>.  It can only store
+objects of class B<L<Devel::XS::AST::Element>>.
 
 The contained elements are stored in first-in, last-out order.
 
 =head1 METHODS
 
-Please don't make any use or assumptions about anything which isn't
-documented here.  Instead, please contact the author.
-
-=head2 new
-
-  $c = Devel::XS::AST::Element::Container->new( attributes );
-
-Construct a new object from the passed I<attributes>, which may be
-either a hashref or a list of key-value pairs.
-
-In addition to the attributes provided by B<L<Devel::XS::AST::Element>>, the following are available:
-
-=over
-
-=item contents
-
-A arrayref containing B<Devel::XS::AST::Element> objects.
-
-=back
-
-=head2 count
-
-  $n = $c->count;
-
-The number of elements stored in the object
-
-=head2 last
-
-  $last = $c->last;
-
-The last object stored in the container.
+See B<L<Devel::XS::AST::Element::MixedBag>> for more information.
 
 =head1 AUTHOR
 

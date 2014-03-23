@@ -19,11 +19,10 @@ subtest 'old style' => sub {
     is( exception { $p->parse_file( datafile( [-1], 'old_style.xs' ) ) },
         undef, 'open file' );
 
-    my $module = shift @{$p->tree->contents};
+    my $tree = $p->tree;
+
+    my $module = $tree->shift;
     isa_ok ( $module, 'Devel::XS::AST::Module', 'module' );
-
-    my $xsubs = $p->tree->contents;
-
 
     for my $spec (
         [ 'char *', 'func', ],
@@ -55,19 +54,17 @@ subtest 'old style' => sub {
 
         subtest $name => sub {
 
-            my $xsub = shift @{$xsubs};
+            my $xsub = $tree->shift;
             isa_ok( $xsub, 'Devel::XS::AST::XSub', "xsub" );
 
             is( $xsub->func_name,   $name,        'name' );
             is( $xsub->return_type, $return_type, 'return type' );
 
-            my $pars = $xsub->args->contents;
-
             for my $exp ( @pars ) {
 
 		my ( $type, $name, $default ) = @$exp;
 
-                my $par = shift @{$pars};
+                my $par = $xsub->args->shift;
                 isa_ok( $par, 'Devel::XS::AST::XSub::Arg', 'arg 1 ast type' );
 
                 if ( $exp->[0] eq '...' ) {
@@ -83,7 +80,7 @@ subtest 'old style' => sub {
                 }
             }
 
-            is( scalar @{$pars}, 0, 'no remaining parameters' );
+            is( $xsub->args->count, 0, 'no remaining parameters' );
 
         };
 
@@ -91,7 +88,7 @@ subtest 'old style' => sub {
     }
 
 
-    is( scalar @{$xsubs}, 0, 'no remaining functions' );
+    is( $tree->count, 0, 'no remaining functions' );
 
 };
 

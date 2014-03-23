@@ -17,11 +17,7 @@ for my $xs_file ( xs_files() ) {
 
     subtest $xs_file => sub {
 
-	my $contents =
-
         my $p = Devel::ParseXS->new;
-
-
 
 	is(
 	   exception{
@@ -32,12 +28,12 @@ for my $xs_file ( xs_files() ) {
 	   "parse"
 	  );
 
-	my $cpp = $p->tree->contents->[0]->contents;
+	my $cpp = $p->tree->shift->shift;
 
-	chomp $cpp->[0];
-	$cpp->[0] .= "\n";
+	chomp $cpp;
+	$cpp .= "\n";
 
-	is_deeply( $cpp, [ ${slurp( $xs_file )} ], "contents" );
+	is_deeply( $cpp, ${slurp( $xs_file )}, "contents" );
     };
 
 }
