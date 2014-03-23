@@ -14,6 +14,7 @@ use ExtUtils::Typemaps;
 
 use Devel::ParseXS::Stream;
 
+use Devel::XS::AST::Boot;
 use Devel::XS::AST::Element::Container;
 use Devel::XS::AST::Comment;
 use Devel::XS::AST::CPP;
