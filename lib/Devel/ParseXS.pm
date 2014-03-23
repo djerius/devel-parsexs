@@ -16,6 +16,7 @@ use Devel::ParseXS::Stream;
 
 use Devel::XS::AST::Element::Container;
 use Devel::XS::AST::Comment;
+use Devel::XS::AST::CPP;
 use Devel::XS::AST::Data;
 use Devel::XS::AST::Keyword;
 use Devel::XS::AST::Pod;
@@ -241,7 +242,7 @@ sub parse_body {
 
         next if $self->handle_keyword( $Re{GKEYWORDS} );
 
-        # TODO:  pay attention to  C preprocessor stuff
+	next if $self->parse_cpp;
 
         # we're now handling an XSUB
 
@@ -583,6 +584,36 @@ sub parse_comment {
 
         # last line wasn't a comment; put it back
         $fh->ungetline;
+        return 1;
+    }
+
+    return;
+}
+
+sub parse_cpp {
+
+    my $self = shift;
+
+    my $fh = $self->fh;
+
+    my %attr = (
+        lineno => $fh->lineno,
+        stream => $fh->stream
+    );
+
+    if ( $_ =~ $Re{CPP} ) {
+
+        # read logical line if it's there
+        $fh->readline( { continue_record => 1 } );
+
+        $self->stash(
+            $self->create_ast_element(
+                'CPP',
+                {
+                    attr     => \%attr,
+                    contents => [ $_ ],
+                } ) );
+
         return 1;
     }
 
