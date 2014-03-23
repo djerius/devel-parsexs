@@ -20,6 +20,7 @@ use Devel::XS::AST::Comment;
 use Devel::XS::AST::CPP;
 use Devel::XS::AST::Data;
 use Devel::XS::AST::Keyword;
+use Devel::XS::AST::Module;
 use Devel::XS::AST::Pod;
 use Devel::XS::AST::Typemap;
 use Devel::XS::AST::XSub;
@@ -98,7 +99,7 @@ our %Re = (
 );
 
 use Class::Tiny
-  qw[ fh module package packid prefix _context ],
+  qw[ fh module _context ],
   {
     fh       => sub { Devel::ParseXS::Stream->new },
     tree     => sub { Devel::XS::AST::Element::Container->new },
@@ -241,7 +242,7 @@ sub parse_body {
 
         next if $self->parse_comment;
 
-	next if $self->parse_cpp;
+        next if $self->parse_cpp;
 
         next if $self->parse_keyword;
 
@@ -399,9 +400,9 @@ sub parse_declaration {
     $xsub->func_name( $func_name );
 
     # remove possible prefix and add package name
-    ( my $clean_func_name = $func_name ) =~ s/^(@{[ $self->prefix ]})?//;
-    $xsub->perl_name( join( '::', $self->package || (), $clean_func_name ) );
-    $xsub->full_func_name( join( '_', $self->packid, $clean_func_name ) );
+    ( my $clean_func_name = $func_name ) =~ s/^(@{[ $self->module->prefix ]})?//;
+    $xsub->perl_name( join( '::', $self->module->package || (), $clean_func_name ) );
+    $xsub->full_func_name( join( '_', $self->module->packid, $clean_func_name ) );
 
     $self->parse_function_parameters( $xsub, $parameters )
       if $parameters =~ /\S/;
@@ -615,7 +616,7 @@ sub parse_cpp {
                 'CPP',
                 {
                     attr     => \%attr,
-                    contents => [ $_ ],
+                    contents => [$_],
                 } ) );
 
         return 1;
@@ -658,14 +659,22 @@ sub parse_MODULE {
     return
       unless my ( $module, $package, $prefix ) = $_ =~ $Re{MODULE};
 
+    my %attr = (
+        lineno => $self->fh->lineno,
+        stream => $self->fh->stream
+    );
 
-    $self->module( $module );
-    $self->package( defined $package ? $package             : '' );
-    $self->prefix( defined $prefix   ? quotemeta( $prefix ) : '' );
+    $self->module(
+        $self->create_ast_element(
+            'Module',
+            {
+                attr    => \%attr,
+                module  => $module,
+                package => $package,
+                prefix  => $prefix,
+            } ) );
 
-    ( my $packid = $self->package ) =~ tr/:/_/;
-
-    $self->packid( $packid );
+    $self->stash( $self->module );
 
     return 1;
 }

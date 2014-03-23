@@ -45,9 +45,9 @@ subtest 'header ok' => sub {
     }
 
 
-    is( $p->module,  'Trial::Foo', 'module name' );
-    is( $p->package, 'Foo::Bar',   'package name' );
-    is( $p->prefix,  'Bar',        'prefix name' );
+    is( $p->module->module,  'Trial::Foo', 'module name' );
+    is( $p->module->package, 'Foo::Bar',   'package name' );
+    is( $p->module->prefix,  'Bar',        'prefix name' );
 
 };
 

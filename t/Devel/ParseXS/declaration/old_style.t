@@ -19,7 +19,11 @@ subtest 'old style' => sub {
     is( exception { $p->parse_file( datafile( [-1], 'old_style.xs' ) ) },
         undef, 'open file' );
 
+    my $module = shift @{$p->tree->contents};
+    isa_ok ( $module, 'Devel::XS::AST::Module', 'module' );
+
     my $xsubs = $p->tree->contents;
+
 
     for my $spec (
         [ 'char *', 'func', ],

@@ -34,9 +34,12 @@ for my $section ( @sections ) {
 
 	my $tree = $p->tree;
 
-	is ( $tree->count, 1, "number of parsed top sections" );
+	is ( $tree->count, 2, "number of parsed top sections" );
 
-	my $xsub = $tree->contents->[0];
+	my $module = shift @{$tree->contents};
+	isa_ok ( $module, 'Devel::XS::AST::Module', 'module' );
+
+	my $xsub = shift @{$tree->contents};
 	isa_ok ( $xsub, 'Devel::XS::AST::XSub', 'parsed xsub' );
 
 	is ( $xsub->func_name, 'func', 'xsub name' );
