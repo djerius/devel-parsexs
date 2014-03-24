@@ -1,0 +1,68 @@
+#!/usr/bin/env perl
+
+use latest;
+
+use Data::Record::Serialize;
+
+use Search::Elasticsearch;
+
+my @fields = qw( distribution version version_numified release path );
+
+my $query = {
+
+    query => {
+        match_all => {}
+    },
+
+    filter => {
+        and => [ {
+                term => {
+                    mime => 'text/x-c'
+                }
+            },
+            {
+                term => {
+                    status => 'latest'
+                }
+            },
+        ],
+    },
+    fields => \@fields,
+
+};
+
+my $es = Search::Elasticsearch->new(
+    client   => '0_90::Direct',
+    cxn_pool => 'Static::NoPing',
+    nodes    => 'api.metacpan.org',
+);
+
+my $scroll = $es->scroll_helper(
+    search_type => 'scan',
+    scroll      => '5m',
+    index       => 'v0',
+    type        => 'file',
+    body        => $query,
+    size        => 100,
+);
+
+my $s = Data::Record::Serialize->new(
+
+  encode => 'dbi',
+  dsn => [ 'SQLite', [ dbname => 'metacpan.db' ] ],
+  table => 'xs',
+  batch => 100,
+  types => { version_numified => 'N' },
+  fields => \@fields,
+);
+
+while ( my $result = $scroll->next ) {
+
+    say $result->{fields}->{path};
+
+    next unless $result->{fields}->{path} =~ /\.xs$/;
+
+    $s->send( $result->{fields} );
+
+}
+

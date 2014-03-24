@@ -1,0 +1,55 @@
+#!/usr/bin/env perl
+
+use latest;
+
+use strict;
+use warnings;
+
+use ddGUI;
+
+use FindBin qw( $Bin );
+use lib "$Bin/../lib";
+
+use Devel::ParseXS;
+
+use Getopt::Long;
+use Test::Deep;
+
+my %opt;
+
+GetOptions( \%opt,
+	    qw[
+		  extract|x
+		  dump|D
+	     ])
+or die( "error in options" );
+
+
+sub AST { "Devel::XS::AST::" . shift }
+
+for my $file ( @ARGV ) {
+
+    my $p = Devel::ParseXS->new;
+
+    say $file;
+
+    if ( $opt{extract} ) {
+
+	my $exp = do $file  or die $@;
+	my $xs = do { local $/ = undef; <DATA> };
+	$file = \$xs;
+
+    }
+
+    eval { $p->parse_file( $file ) };
+    my $e = $@;
+
+    if ( $opt{dump} ) {
+	warn $e if $e;
+	Dumper $p->tree->contents;
+    }
+
+    die $e if $e;
+
+}
+
