@@ -96,6 +96,8 @@ our %Re = (
     XSUB_PARAMETER_INOUT =>
       qr/^\s* (IN(?:_OUTLIST|_OUT)? | OUT(?:LIST)?) \b \s*/x,
 
+    BLANK_LINE => qr/^\s*$/
+
 );
 
 use Class::Tiny
@@ -296,15 +298,25 @@ sub parse_xsub {
     $self->stash( $input );
     $self->push_context( $input );
 
+
+    # the next XSUB may start as:
+    #
+    # <blank line>
+    # OPTIONAL <comment>
+    # <left adjusted XSUB code>
+
+    # so, keep track of blank lines followed by comments or pod
+    my $saw_blank_line = $fh->line =~ $Re{BLANK_LINE};
+
     while ( $fh->readline ) {
 
-        # XSUB ends if we hit a left adjusted line with a preceding blank one
-        $fh->ungetline && last if /^\S/ && $fh->lastline =~ /^\s*$/;
+        $fh->ungetline && last if /^\S/ && $saw_blank_line;
 
         next if $self->parse_pod;
 
         next if $self->parse_comment;
 
+	$saw_blank_line = $_ =~ $Re{BLANK_LINE};;
 
         if ( /^\s*($Re{XSUB_SECTION})\s*:\s*(?:#.*)?(.*)/ ) {
 
