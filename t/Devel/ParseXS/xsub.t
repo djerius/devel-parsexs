@@ -7,25 +7,39 @@ use warnings;
 
 use Test::More;
 use Test::Fatal;
-use Data::Section -setup;
+use Test::Deep;
 
 use Devel::ParseXS;
 
-use t::common qw[ xs_files ];
+use t::common qw[ files datafile ];
 
-for my $xs_file ( xs_files() ) {
+sub AST { "Devel::XS::AST::" . shift }
 
-    subtest $xs_file => sub {
+for my $file ( files( '.pl' ) ) {
+
+    subtest $file => sub {
+
+	my $exp = do $file  or die $@;
+
+	my $xs = do { local $/ = undef; <DATA> };
 
         my $p       = Devel::ParseXS->new;
 
+	my $stream = noclass( { fh => undef, filename => $file } );
+
 	is(
 	   exception{
-	       $p->parse_file( $xs_file );
+	       $p->parse_file( \$xs );
 	   },
 	   undef,
-	   "parse $xs_file"
+	   "parse $file"
 	  );
+
+	cmp_deeply(
+		   $p->tree->contents,
+		   $exp,
+		  'compare');
+
     };
 
 }

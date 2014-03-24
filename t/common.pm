@@ -13,6 +13,7 @@ our @EXPORT_OK = qw[
 
   datafile
   data
+  files
   xs_files
   slurp
 
@@ -76,6 +77,20 @@ sub xs_files {
 	if 'ARRAY' eq ref $_[0];
 
     return glob( catfile( @path, '*.xs' ) );
+}
+
+sub files {
+
+    my ( $ext ) = shift;
+
+    my $package = ( caller )[0];
+
+    my @path = split( '::', $package );
+
+    psplice( \@path, @{ shift() } )
+	if 'ARRAY' eq ref $_[0];
+
+    return glob( catfile( @path, "*$ext" ) );
 }
 
 
