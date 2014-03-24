@@ -3,20 +3,7 @@ package Devel::XS::AST::Data;
 use strict;
 use warnings;
 
-use base 'Devel::XS::AST::Element';
-
-use Class::Tiny  {
-    contents => sub { [] }
-};
-
-sub push {
-
-    my $self = shift;
-
-    push @{$self->contents}, @_;
-
-    return;
-}
+use base 'Devel::XS::AST::Element::MixedBag';
 
 
 sub as_string {
