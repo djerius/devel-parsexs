@@ -169,18 +169,19 @@ sub stash_data {
 
     my $context = $self->context;
 
+    my $data;
+
     if ( $context->last->$_isa( 'Devel::XS::AST::Data' ) ) {
 
-        $context->last->push( @_ );
+	$data = $context->last;
 
     }
 
     else {
 
-        my $data = $self->create_ast_element(
+        $data = $self->create_ast_element(
             'Data',
             {
-                contents => [@_],
                 attr     => {
                     lineno => $self->fh->lineno,
                     stream => $self->fh->stream,
@@ -190,7 +191,9 @@ sub stash_data {
         $self->stash( $data );
     }
 
-    return;
+    $data->push( @_ );
+
+    return $data;
 }
 
 sub parse_file {
@@ -641,8 +644,11 @@ sub parse_keyword {
 
     my ( $self, $re ) = @_;
 
+    $re = $Re{GKEYWORDS}
+	unless defined $re;
+
     return
-      unless my ( $kwd, $arg ) = /^\s*($Re{GKEYWORDS})\s*:\s*(?:#.*)?(.*)/;
+      unless my ( $kwd, $arg ) = /^\s*($re)\s*:\s*(?:#.*)?(.*)/;
 
     my $handler = 'handle_' . $kwd;
 
@@ -698,12 +704,18 @@ sub handle_BOOT {
 
     my $fh = $self->fh;
 
-    my %attr = (
-        lineno => $fh->lineno,
-        stream => $fh->stream
-    );
+    my $boot = $self->create_ast_element(
+        'Boot',
+        {
+            attr => {
+                lineno => $fh->lineno,
+                stream => $fh->stream
+              }
 
-    my @contents;
+        } );
+
+    $self->stash( $boot );
+    $self->push_context( $boot );
 
     # According to perlxs:
     #
@@ -711,25 +723,31 @@ sub handle_BOOT {
     #   block.
     #
     # Too bad that's not what happens out in the field.  In reality,
-    # it's the first blank line followed by a left justified line.
+    # it's 
+    #   1. A blank line
+    #   2. followed by an optional POD section
+    #   3. followed by an optional TYPEMAP section
+    #   4. followed by a left justified line.
+
+    # keep track of last non-POD, TYPEMAP line
+    my $data;
 
     while ( $fh->readline ) {
 
-	if ( /^\S/ && $fh->lastline =~ $Re{BLANK_LINE} ) {
+        next if $self->parse_pod;
+        next if $self->parse_comment;
+
+	next if $self->parse_keyword( 'TYPEMAP' );
+
+	if ( /^\S/ && $data && $data->last =~ $Re{BLANK_LINE} ) {
 
 	    $fh->ungetline;
 	    last;
 	}
-        push @contents, $_;
+        $data = $self->stash_data( $_ );
     }
 
-    $self->stash(
-        $self->create_ast_element(
-            'Boot',
-            {
-                attr     => \%attr,
-                contents => \@contents,
-            } ) );
+    $self->pop_context;
 
     return 1;
 }
