@@ -8,14 +8,14 @@ use parent 'Devel::XS::AST::Element::MixedBag';
 use Carp;
 use Safe::Isa;
 
-use constant CLASS => 'Devel::XS::AST::Element';
+sub CLASS { 'Devel::XS::AST::Element' }
 
 sub BUILD {
 
     my $self = shift;
 
-    croak( "contents array must contain only objects of class @{[ CLASS ]}\n" )
-	if grep { !$_->$_isa( CLASS ) } @{ $self->contents };
+    croak( "contents array must contain only objects of class @{[ $self->CLASS ]}\n" )
+	if grep { !$_->$_isa( $self->CLASS ) } @{ $self->contents };
 
     return;
 }
@@ -24,8 +24,8 @@ sub push {
 
     my $self = shift;
 
-    croak( "attempt to push something not an object of @{[ CLASS ]}\n" )
-	if grep { ! $_->$_isa( CLASS ) } @_;
+    croak( "attempt to push something not an object of @{[ $self->CLASS ]}\n" )
+	if grep { ! $_->$_isa( $self->CLASS ) } @_;
 
     $self->SUPER::push( @_ );
 
@@ -36,8 +36,8 @@ sub unshift {
 
     my $self = shift;
 
-    croak( "attempt to unshift something not an object of @{[ CLASS ]}\n" )
-	if grep { ! $_->$_isa( CLASS ) } @_;
+    croak( "attempt to unshift something not an object of @{[ $self->CLASS ]}\n" )
+	if grep { ! $_->$_isa( $self->CLASS ) } @_;
 
     $self->SUPER::unshift( @_ );
 

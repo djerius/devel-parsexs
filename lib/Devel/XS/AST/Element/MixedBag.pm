@@ -8,7 +8,6 @@ use parent 'Devel::XS::AST::Element';
 use Carp;
 use Safe::Isa;
 
-
 use Class::Tiny
     {
 	contents => sub { [] },
@@ -71,6 +70,12 @@ sub last {
 sub count {
 
     return scalar @{ $_[0]->contents };
+
+}
+
+sub element {
+
+    return $_[0]->contents->[$_[1]];
 
 }
 
