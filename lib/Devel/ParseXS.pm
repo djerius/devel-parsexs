@@ -705,9 +705,21 @@ sub handle_BOOT {
 
     my @contents;
 
+    # According to perlxs:
+    #
+    #   The first blank line after the keyword will terminate the code
+    #   block.
+    #
+    # Too bad that's not what happens out in the field.  In reality,
+    # it's the first blank line followed by a left justified line.
+
     while ( $fh->readline ) {
 
-        last if /^\s*$/;
+	if ( /^\S/ && $fh->lastline =~ $Re{BLANK_LINE} ) {
+
+	    $fh->ungetline;
+	    last;
+	}
         push @contents, $_;
     }
 

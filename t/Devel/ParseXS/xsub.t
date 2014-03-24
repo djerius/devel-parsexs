@@ -15,7 +15,7 @@ use t::common qw[ files datafile ];
 
 sub AST { "Devel::XS::AST::" . shift }
 
-for my $file ( files( '.pl' ) ) {
+for my $file ( $ENV{XSUB} ? $ENV{XSUB} : files( '.pl' ) ) {
 
     subtest $file => sub {
 
