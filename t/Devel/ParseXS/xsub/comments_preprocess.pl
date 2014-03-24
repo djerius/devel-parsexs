@@ -22,7 +22,7 @@
             args        => methods(
                 count => 1,
                 [ element => 0 ] => methods(
-                    name   => window,
+                    name   => 'window',
                     c_type => 'GtkWindow *',
                     attr   => superhashof( { lineno => 5 } ),
                 ),
