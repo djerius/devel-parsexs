@@ -831,9 +831,9 @@ sub process_INPUT {
             if ( s/\s*([=;+])(.*)$// ) {
 
                 $init_type = {
-                    '=' => 'replace',
-                    ';' => 'replace_later',
-                    '+' => 'add_later'
+                    '=' => Devel::XS::AST::XSub::Arg::INIT_REPLACE,
+                    ';' => Devel::XS::AST::XSub::Arg::INIT_REPLACE_LATER,
+                    '+' => Devel::XS::AST::XSub::Arg::INIT_ADD_LATER,
                 }->{$1};
 
                 ( $init_value = $2 ) =~ s/^\s*|\s*$//g;
@@ -843,7 +843,7 @@ sub process_INPUT {
                 unless ( length( $init_value ) ) {
 
                     $self->error( $lineno, "missing variable initialization" )
-                      unless ';' eq $init_type;
+                      unless Devel::XS::AST::XSub::Arg::INIT_REPLACE_LATER eq $init_type;
 
                     undef $init_type;
                 }
@@ -852,7 +852,7 @@ sub process_INPUT {
 
                     $self->error( $lineno,
                         "an initialization value of '+ NO_INIT' makes no sense\n"
-                    ) if $init_type eq 'add_later';
+                    ) if $init_type eq Devel::XS::AST::XSub::Arg::INIT_ADD_LATER;
 
                     undef $init_value;
                     $init_arg = 0;

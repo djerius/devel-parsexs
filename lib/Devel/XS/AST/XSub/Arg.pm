@@ -5,6 +5,12 @@ use parent -norequire => 'Devel::XS::AST::Element';
 use strict;
 use warnings;
 
+use constant {
+    INIT_REPLACE       => 1,
+    INIT_REPLACE_LATER => 2,
+    INIT_ADD_LATER     => 3,
+};
+
 use Class::Tiny (
     'c_type',         # C type of argument
     'default',        # default value
