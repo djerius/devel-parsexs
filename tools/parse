@@ -2,9 +2,6 @@
 
 use latest;
 
-use strict;
-use warnings;
-
 use ddGUI;
 
 use FindBin qw( $Bin );
