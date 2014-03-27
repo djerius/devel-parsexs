@@ -2,67 +2,195 @@
 
 use latest;
 
+use DDP;
+
 use Data::Record::Serialize;
 
+use DBI;
 use Search::Elasticsearch;
+use Types::Standard qw[ -types slurpy ];
+use Type::Params qw[ compile ];
+use JSON::PP qw[encode_json];
+use IO::All;
 
-my @fields = qw( distribution version version_numified release path );
+use Getopt::Long::Descriptive;
 
-my $query = {
+my ( $opt, $usage ) = describe_options(
 
-    query => {
-        match_all => {}
-    },
+    "$0 %o",
+    [ 'db=s',       "sqlite db",  { default => 'metacpan.db' } ],
+    [ 'xs',         'perform xs fetch' ],
+    [ 'archive',    "perform archive fetch" ],
+    [ 'size=i',     "batch size", { default => 100 } ],
+    [ 'save-query', "save query" ],
+);
 
-    filter => {
-        and => [ {
-                term => {
-                    mime => 'text/x-c'
-                }
+fetch_xs()      if $opt->xs;
+fetch_archive() if $opt->archive;
+
+sub fetch_xs {
+
+    fetch(
+        save_as => 'xs.json',
+        query   => {
+
+            query => {
+                match_all => {}
             },
-            {
-                term => {
-                    status => 'latest'
-                }
+
+            filter => {
+                and => [ {
+                        term => {
+                            mime => 'text/x-c'
+                        }
+                    },
+                    {
+                        term => {
+                            status => 'latest'
+                        }
+                    },
+                ],
             },
+        },
+
+        fields => [
+            qw( release author distribution
+              version version_numified
+              path )
         ],
-    },
-    fields => \@fields,
-
-};
-
-my $es = Search::Elasticsearch->new(
-    client   => '0_90::Direct',
-    cxn_pool => 'Static::NoPing',
-    nodes    => 'api.metacpan.org',
-);
-
-my $scroll = $es->scroll_helper(
-    search_type => 'scan',
-    scroll      => '5m',
-    index       => 'v0',
-    type        => 'file',
-    body        => $query,
-    size        => 100,
-);
-
-my $s = Data::Record::Serialize->new(
-
-  encode => 'dbi',
-  dsn => [ 'SQLite', [ dbname => 'metacpan.db' ] ],
-  table => 'xs',
-  batch => 100,
-  types => { version_numified => 'N' },
-  fields => \@fields,
-);
-
-while ( my $result = $scroll->next ) {
-
-    say $result->{fields}->{path};
-
-    next unless $result->{fields}->{path} =~ /\.xs$/;
-
-    $s->send( $result->{fields} );
+        db       => $opt->db,
+        table    => 'xs',
+        db_types => { version_numified => 'N' },
+        endpoint => 'file',
+        filter   => sub {
+            say $_->{fields}->{path};
+            $_->{fields}->{path} =~ /\.xs$/;
+        },
+        size => $opt->size
+    );
 
 }
 
+sub fetch_archive {
+
+    my $dbh = DBI->connect( "dbi:SQLite:dbname=@{[ $opt->db ]}",
+        '', '', { RaiseError => 1 } );
+
+    my @dists = map { @$_ }
+      @{ $dbh->selectall_arrayref( 'select distinct distribution from xs' ) };
+
+
+    my $arg = {
+        fields => [qw( distribution archive version )],
+        db     => $opt->db,
+        table  => 'archive',
+        size   => $opt->size,
+    };
+
+    my $encoder = Data::Record::Serialize->new(
+        encode     => 'dbi',
+        dsn        => [ 'SQLite', [ dbname => $arg->{db} ] ],
+        table      => $arg->{table},
+        batch      => $arg->{size},
+        fields     => $arg->{fields},
+        drop_table => 1,
+    );
+
+    my @batch;
+    my $id = '000';
+    while ( @batch = splice( @dists, 0, $opt->size ) ) {
+
+        $id++;
+
+        fetch(
+            save_as => sprintf( "archive-%03d.json", $id ),
+            query   => {
+                filter => {
+                    and => [
+                        { term => { status => "latest" } },
+                        {
+                            or => [
+                                map { { term => { distribution => $_ } } }
+                                  @batch
+                            ] } ]
+                },
+            },
+            %$arg,
+            encoder  => $encoder,
+            endpoint => 'release',
+            filter   => sub {
+                p $_->{fields};
+                1;
+            },
+        );
+
+    }
+
+
+}
+
+sub fetch {
+
+    state $check = compile(
+        slurpy Dict [
+            save_as  => Str,
+            query    => HashRef,
+            filter   => CodeRef,
+            db       => Str,
+            table    => Str,
+            db_types => Optional [HashRef],
+            endpoint => Str,
+            fields   => ArrayRef,
+            size     => Optional [Num],
+            encoder  => Optional [Object]     # [ HasMethods ['send'] ] broken
+                                              # in Type::Tiny 0.4; see RT#94196:
+        ] );
+
+    my ( $arg ) = $check->( @_ );
+
+    $arg->{size} //= 100;
+
+    my $es = Search::Elasticsearch->new(
+        client   => '0_90::Direct',
+        cxn_pool => 'Static::NoPing',
+        nodes    => 'api.metacpan.org',
+    );
+
+
+    my %query = (
+        search_type => 'scan',
+        scroll      => '5m',
+        index       => 'v0',
+        type        => $arg->{endpoint},
+        body        => { %{ $arg->{query} }, fields => $arg->{fields} },
+        size        => $arg->{size},
+    );
+
+    if ( $opt->save_query ) {
+        io( $arg->{save_as} )->print( encode_json( \%query ) );
+    }
+
+    my $scroll = $es->scroll_helper( %query );
+
+    $arg->{encoder} //= Data::Record::Serialize->new(
+
+        encode => 'dbi',
+        dsn    => [ 'SQLite', [ dbname => $arg->{db} ] ],
+        table  => $arg->{table},
+        batch  => $arg->{size},
+        ( types => $arg->{db_types} ) x !!( $arg->{db_types} ),
+        fields     => $arg->{fields},
+        drop_table => 1,
+    );
+
+    local $_;
+    while ( $_ = $scroll->next ) {
+
+        next
+          if $arg->{filter}
+          && !$arg->{filter}->();
+
+        $arg->{encoder}->send( $_->{fields} );
+    }
+
+}
