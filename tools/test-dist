@@ -1,0 +1,167 @@
+#!/usr/bin/env perl
+
+use latest;
+
+use CPAN::Visitor;
+
+use ddGUI;
+use DBI;
+use DDP;
+use Path::Tiny;
+use Getopt::Long::Descriptive;
+use Try::Tiny;
+use IO::All;
+
+use File::pushd;
+
+use FindBin qw( $Bin );
+use lib "$Bin/../lib";
+
+use Devel::ParseXS;
+
+
+my $use_CPAN_Mini;
+
+BEGIN {
+    $use_CPAN_Mini = eval "use CPAN::Mini; 1 ";
+}
+
+my ( $opt, $usage ) = describe_options(
+
+    "$0 %o",
+    [ 'cpan=s', "cpan" ],
+    [ 'db=s',          "sqlite db",           { default => 'metacpan.db' } ],
+    [ 'filter-dist=s', 'distribution filter', { default => 'all' } ],
+    [ 'filter-xs=s',   'xs file filter',      { default => 'all' } ],
+    [ 'dbtrace=i',     'dbi trace level',     { default => 0 } ],
+);
+
+if ( !$opt->cpan && $use_CPAN_Mini ) {
+
+    my %config = CPAN::Mini->read_config;
+    $opt->{cpan} = $config{local};
+
+}
+
+die( "must specify --cpan\n" )
+  unless defined $opt->cpan;
+
+my $dbh_s = DBI->connect(
+    "dbi:SQLite:dbname=@{[ $opt->db ]}",
+    {
+        RaiseError          => 1,
+        AutoInactiveDestroy => 1,
+        AutoCommit => 1,
+    } );
+
+$dbh_s->trace( $opt->dbtrace );
+
+my $dbh_u = $dbh_s->clone( { RaiseError => 1,
+        AutoCommit => 1,
+ } );
+
+$dbh_u->do(
+    q[create table
+  if not exists
+  pass (distribution text, path text, passed boolean)
+] );
+
+my @distributions = map { @{$_} } map { @{$_} }
+  $dbh_s->selectall_arrayref( filter( $opt->filter_dist, 'dists' ) );
+
+my $visitor = CPAN::Visitor->new(
+    cpan  => $opt->cpan,
+    files => \@distributions
+);
+
+my $select = $dbh_s->prepare( filter( $opt->filter_xs, 'xs' ) );
+
+my $update = $dbh_u->prepare(
+    q[
+insert
+  into pass
+       ( distribution, path, passed )
+values ( ?, ?, ?)
+] );
+
+$visitor->iterate(
+    check => \&check_dist,
+    visit => \&process_dist,
+);
+
+sub check_dist {
+
+    my $job = shift;
+
+    return 1 if -f $job->{distpath};
+
+    warn "Cannot find $job->{distpath}; trying another extension\n";
+
+    $job->{distpath} =~ s/[.]([^.]+)$//;
+    my $ext = {
+        'zip'    => 'tar.gz',
+        'tar.gz' => 'zip'
+    }->{$1};
+
+    if ( !defined $ext ) {
+        warn( "canot recognize extension '$1' for $job->{distpath}\n" );
+        return 0;
+    }
+
+    $job->{distpath} .= ".$ext";
+
+    if ( !-f $job->{distpath} ) {
+        warn( "cannot find $job->{distpath} with alternate extension\n" );
+        return 0;
+    }
+
+    return 1;
+
+}
+
+sub process_dist {
+    my $job = shift;
+
+    say $job->{distfile};
+
+    my $res
+      = $dbh_s->selectall_arrayref( $select, {},
+        ( $job->{distfile} ) x $select->{NUM_OF_PARAMS} );
+
+    my @xs = map { @$_ } @$res;
+
+    for my $xs ( @xs ) {
+
+        my $parser = Devel::ParseXS->new;
+
+        my $path = path( $xs );
+
+        my $dir  = pushd( $path->parent );
+        my $file = $path->basename;
+
+        my $success = 0;
+        try {
+            $parser->parse_file( $file );
+            $success = 1;
+        }
+        catch {
+
+            say STDERR "$job->{distfile}/$xs: $_";
+        };
+
+        $update->execute( $job->{distfile}, $path, $success );
+    }
+
+    return 1;
+}
+
+sub filter {
+
+    my $file = path( 'filters' )->child( join( '-',  @_ ) . '.sql' );
+
+    my $sql = io( $file )->slurp;
+    $sql =~ s/;\s*$//;
+    return $sql;
+}
+
+
