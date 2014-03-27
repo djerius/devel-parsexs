@@ -458,15 +458,22 @@ sub parse_function_parameters {
         s/^\s* ( [^=]*? ) \s* (?: = \s* (.*?)\s* )?$/$1/x;
         my $default = $2;
 
-        # param may be 'type (&)?name | name | length(name)'
-        my ( $c_type, $pass_addr, $name, $length_name ) = /
+        # param may be 'type | type (&)?name | name | length(name)'
+        # regexp returns at least $c_type, which might have length 0
+        my $success = my ( $c_type, $pass_addr, $name, $length_name )
+	    = /
 		    (.*?)                         # C type
+		    (?:				  # may not have anything else
 		    \s*
 		    (\&?)   			  # pass addr
 		    \s*\b (?:
 			(\w+)                     # name
 		    | length\( \s*(\w+)\s* \)     # length( name )
-		    ) \s* $ /x;
+		    )
+		    )? \s* $ /x;
+
+	$self->error( 0, "unable to parse variable definition: $save\n" )
+	    if $success == 1 && ! length( $c_type );
 
         $self->error( 0, "invalid variable definition: $save\n" )
           if length( $pass_addr ) && !( length( $c_type ) && defined $name );
@@ -516,6 +523,35 @@ sub parse_function_parameters {
 
 	    $self->error( 0, "Must specify type for length() argument: '$save'" )
 		unless length $c_type;
+
+	    $argp{c_type} = ExtUtils::Typemaps::tidy_type( $c_type );
+	    $argp{in_declaration} = 1;
+
+        }
+
+	# just a type
+        elsif ( length $c_type ) {
+
+            if ( defined $default ) {
+
+                if ( $default eq 'NO_INIT' ) {
+
+                    $argp{optional} = 1;
+
+                }
+
+                elsif ( length $default ) {
+
+                    $argp{default} = $default;
+
+                }
+
+                else {
+                    $self->error( 0,
+                        "incomplete default specification for '$save'\n" );
+                }
+
+            }
 
 	    $argp{c_type} = ExtUtils::Typemaps::tidy_type( $c_type );
 	    $argp{in_declaration} = 1;
