@@ -92,5 +92,57 @@ subtest 'ansi-c style' => sub {
 
 };
 
+subtest 'length' => sub {
+
+    my $p = Devel::ParseXS->new;
+
+    my $xs =
+q[MODULE = module
+
+void
+foo( short length(x) )
+];
+
+    is( exception { $p->parse_file( \$xs ) },
+        undef, 'parse' );
+
+    my $tree = $p->tree;
+    my $module = $tree->shift;
+
+    isa_ok ( $module, 'Devel::XS::AST::Module', 'module' );
+
+    my $xsub = $tree->shift;
+    isa_ok( $xsub, 'Devel::XS::AST::XSub', "xsub" );
+
+    is( $xsub->func_name,   'foo',         'name' );
+    is( $xsub->return_type, 'void', 'return type' );
+
+    my $par = $xsub->args->shift;
+    isa_ok( $par, 'Devel::XS::AST::XSub::Arg', 'arg 1 ast type' );
+
+    is( $par->c_type, 'short', 'arg type' );
+    is( $par->length_name, 'x', 'length name' );
+    is( $par->in_declaration, 1, 'found in declaration' );
+
+};
+
+subtest 'length, no type' => sub {
+
+    my $p = Devel::ParseXS->new;
+
+    my $xs =
+q[MODULE = module
+
+void
+foo( length(x) )
+];
+
+    like( exception { $p->parse_file( \$xs ) },
+        qr/Must specify type/,
+	'parse' );
+
+
+};
+
 
 done_testing;

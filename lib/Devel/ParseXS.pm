@@ -514,6 +514,12 @@ sub parse_function_parameters {
             $self->error( 0, "Default value on length() argument: '$save'" )
               if defined $default;
 
+	    $self->error( 0, "Must specify type for length() argument: '$save'" )
+		unless length $c_type;
+
+	    $argp{c_type} = ExtUtils::Typemaps::tidy_type( $c_type );
+	    $argp{in_declaration} = 1;
+
         }
 
         elsif ( $_ eq '...' ) {
