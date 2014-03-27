@@ -313,11 +313,11 @@ sub parse_xsub {
 
     while ( $fh->readline ) {
 
-        $fh->ungetline && last if /^\S/ && $saw_blank_line;
-
         next if $self->parse_pod;
 
         next if $self->parse_comment;
+
+        $fh->ungetline && last if /^\S/ && $saw_blank_line;
 
 	$saw_blank_line = $_ =~ $Re{BLANK_LINE};;
 
