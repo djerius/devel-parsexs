@@ -30,10 +30,13 @@ my ( $opt, $usage ) = describe_options(
 
     "$0 %o",
     [ 'cpan=s', "cpan" ],
-    [ 'db=s',          "sqlite db",           { default => 'metacpan.db' } ],
-    [ 'filter-dist=s', 'distribution filter', { default => 'all' } ],
-    [ 'filter-xs=s',   'xs file filter',      { default => 'all' } ],
-    [ 'dbtrace=i',     'dbi trace level',     { default => 0 } ],
+    [ 'db=s',          "sqlite db",              { default => 'metacpan.db' } ],
+    [ 'dbtrace=i',     'dbi trace level',        { default => 0 } ],
+    [ 'dist=s@',       'specific dists to test', { default => [] } ],
+    [ 'filter-dist=s', 'distribution filter', ],
+    [ 'filter-xs=s',   'xs file filter',         { default => 'all' } ],
+    [ 'jobs=i',    'number of parallel jobs', { default => 0 } ],
+    [ 'verbose:+', 'verbose+', ],
 );
 
 if ( !$opt->cpan && $use_CPAN_Mini ) {
@@ -51,14 +54,16 @@ my $dbh_s = DBI->connect(
     {
         RaiseError          => 1,
         AutoInactiveDestroy => 1,
-        AutoCommit => 1,
+        AutoCommit          => 1,
     } );
 
 $dbh_s->trace( $opt->dbtrace );
 
-my $dbh_u = $dbh_s->clone( { RaiseError => 1,
-        AutoCommit => 1,
- } );
+my $dbh_u = $dbh_s->clone( {
+    RaiseError          => 1,
+    AutoCommit          => 1,
+    AutoInactiveDestroy => 1,
+} );
 
 $dbh_u->do(
     q[create table
@@ -66,28 +71,58 @@ $dbh_u->do(
   pass (distribution text, path text, passed boolean)
 ] );
 
-my @distributions = map { @{$_} } map { @{$_} }
-  $dbh_s->selectall_arrayref( filter( $opt->filter_dist, 'dists' ) );
+
+my $distributions = fetch_distributions( $dbh_s );
+
 
 my $visitor = CPAN::Visitor->new(
     cpan  => $opt->cpan,
-    files => \@distributions
+    files => $distributions
 );
 
 my $select = $dbh_s->prepare( filter( $opt->filter_xs, 'xs' ) );
 
-my $update = $dbh_u->prepare(
-    q[
-insert
-  into pass
-       ( distribution, path, passed )
-values ( ?, ?, ?)
-] );
 
 $visitor->iterate(
     check => \&check_dist,
     visit => \&process_dist,
+    jobs  => $opt->jobs,
 );
+
+sub fetch_distributions {
+
+    my ( $dbh ) = @_;
+
+    my @distributions;
+
+    if ( @{ $opt->dist } ) {
+
+        warn( "ignoring --filter-dist if --dist is specified\n" )
+          if $opt->filter_dist;
+
+        my $sth = $dbh->prepare( filter( qw[ specific dists ] ) );
+
+        for my $dist ( @{ $opt->dist } ) {
+
+            $sth->execute( $dist );
+
+            push @distributions, $sth->fetchrow_array;
+        }
+
+    }
+    else {
+
+        $opt->{'filter_dist'} //= 'all';
+
+        my $rv
+          = $dbh->selectall_arrayref( filter( $opt->filter_dist, 'dists' ) );
+
+        @distributions = map { @{$_} } @$rv;
+
+    }
+
+    return \@distributions;
+}
 
 sub check_dist {
 
@@ -122,7 +157,8 @@ sub check_dist {
 sub process_dist {
     my $job = shift;
 
-    say $job->{distfile};
+    say $job->{distfile}
+      if $opt->verbose;
 
     my $res
       = $dbh_s->selectall_arrayref( $select, {},
@@ -140,24 +176,60 @@ sub process_dist {
         my $file = $path->basename;
 
         my $success = 0;
+        print $path
+          if $opt->verbose > 1;
         try {
             $parser->parse_file( $file );
             $success = 1;
+            say ' ... pass'
+              if $opt->verbose > 1;
         }
         catch {
+            say ' ... fail:'
+              if $opt->verbose > 1;
 
             say STDERR "$job->{distfile}/$xs: $_";
         };
 
-        $update->execute( $job->{distfile}, $path, $success );
+        update_parse_results( $dbh_u, $job->{distfile}, $path, $success );
     }
 
     return 1;
 }
 
+sub update_parse_results {
+
+    my ( $dbh_u, $distribution, $path, $success ) = @_;
+
+    state $update = $dbh_u->prepare(
+        q[
+update pass
+   set passed = ?
+ where distribution = ?
+   and path = ?
+] );
+
+    state $insert = $dbh_u->prepare(
+        q[
+insert into pass
+       (  passed, distribution, path )
+values ( ?, ?, ?)
+] );
+
+    if ( 0 == $update->execute( $success, $distribution, $path ) ) {
+
+        if ( 0 == $insert->execute( $success, $distribution, $path ) ) {
+
+            croak(
+                "error updating status for $distribution:$path = $success\n" );
+        }
+
+    }
+}
+
 sub filter {
 
-    my $file = path( 'filters' )->child( join( '-',  @_ ) . '.sql' );
+    my $file = path( 'filters' )->child( join( '-', @_ ) . '.sql' );
 
     my $sql = io( $file )->slurp;
     $sql =~ s/;\s*$//;
