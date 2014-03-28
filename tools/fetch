@@ -19,16 +19,21 @@ my ( $opt, $usage ) = describe_options(
 
     "$0 %o",
     [ 'db=s',       "sqlite db",  { default => 'metacpan.db' } ],
-    [ 'xs',         'perform xs fetch' ],
-    [ 'archive',    "perform archive fetch" ],
     [ 'size=i',     "batch size", { default => 100 } ],
     [ 'save-query', "save query" ],
+    [ 'verbose:+',  "verbose " ],
 );
 
-fetch_xs()      if $opt->xs;
-fetch_archive() if $opt->archive;
+foreach ( @ARGV ) {
 
-sub fetch_xs {
+    ( my $cmd = $_ ) =~ s/-/_/g;
+
+    $cmd = _cmd->can( $cmd )
+      or die( "unknown command: $_" );
+    $cmd->();
+}
+
+sub _cmd::xs {
 
     fetch(
         save_as => 'xs.json',
@@ -71,14 +76,12 @@ sub fetch_xs {
 
 }
 
-sub fetch_archive {
+sub _cmd::archive {
 
-    my $dbh = DBI->connect( "dbi:SQLite:dbname=@{[ $opt->db ]}",
-        '', '', { RaiseError => 1 } );
+    my $dbh = db_connect();
 
     my @dists = map { @$_ }
       @{ $dbh->selectall_arrayref( 'select distinct distribution from xs' ) };
-
 
     my $arg = {
         fields => [qw( distribution archive version )],
@@ -118,10 +121,15 @@ sub fetch_archive {
             %$arg,
             encoder  => $encoder,
             endpoint => 'release',
-            filter   => sub {
-                p $_->{fields};
-                1;
-            },
+            (
+                $opt->verbose
+                ? (
+                    filter => sub {
+                        p $_->{fields};
+                        1;
+                    } )
+                : ()
+            ),
         );
 
     }
@@ -129,13 +137,94 @@ sub fetch_archive {
 
 }
 
+
+
+sub _cmd::merge {
+
+    my $dbh = db_connect();
+
+    $dbh->do( q[ drop table files ] );
+
+    $dbh->do(
+        q[
+create table files as
+ select xs.*, archive, xs.author || '/' || archive as autharchive
+   from xs, archive
+  where xs.distribution = archive.distribution
+    and ( xs.version_numified = archive.version
+          or xs.version = archive.version )
+] );
+
+}
+
+sub _bad_merges {
+
+    my $dbh = shift;
+
+    $dbh->selectall_arrayref(
+        q[
+select xs.*, archive.archive, archive.version as archive_version
+  from xs, archive,
+   (select release, distribution, path from xs
+    except
+    select release, distribution, path from files) as tmp
+ where xs.distribution = archive.distribution
+   and xs.distribution = tmp.distribution
+], { Slice => {} } );
+
+}
+
+sub _cmd::check_merge {
+
+    my $dbh = db_connect();
+
+    my $missing = _bad_merges( $dbh );
+
+    p $missing;
+}
+
+
+sub fix_archive_version {
+
+    my ( $dbh, $data ) = @_;
+
+    my $sth = $dbh->prepare(
+        q[
+update archive
+   set version = ?
+ where archive = ?;
+] );
+
+    $sth->execute_array( {
+            ArrayTupleFetch => sub { shift @$data }
+        } );
+}
+
+sub _cmd::fix_merge {
+
+    my $dbh = db_connect();
+
+    my $missing = _bad_merges( $dbh );
+
+    my @data;
+
+    for my $rec ( @$missing ) {
+
+	push @data, [ $rec->{version}, $rec->{archive} ]
+	    if $rec->{archive} =~ /^$rec->{release}/;
+    }
+
+    fix_archive_version( $dbh, \@data );
+}
+
+
 sub fetch {
 
     state $check = compile(
         slurpy Dict [
             save_as  => Str,
             query    => HashRef,
-            filter   => CodeRef,
+            filter   => Optional [CodeRef],
             db       => Str,
             table    => Str,
             db_types => Optional [HashRef],
@@ -192,5 +281,16 @@ sub fetch {
 
         $arg->{encoder}->send( $_->{fields} );
     }
+
+}
+
+sub db_connect {
+
+    return DBI->connect(
+        "dbi:SQLite:dbname=@{[ $opt->db ]}",
+        {
+            RaiseError => 1,
+            AutoCommit => 1,
+        } );
 
 }
