@@ -32,14 +32,14 @@ my ( $opt, $usage ) = describe_options(
 
     "$0 %o",
     [ 'cpan=s', "cpan" ],
-    [ 'db=s',          "sqlite db",              { default => 'metacpan.db' } ],
+    [ 'db=s',          "sqlite db",              { default => path($Bin)->child('metacpan.db') } ],
     [ 'dbtrace=i',     'dbi trace level',        { default => 0 } ],
     [ 'dist=s@',       'specific dists to test', { default => [] } ],
     [ 'look',          'run a shell inside the distributions', ],
     [ 'filter-dist=s', 'distribution filter', ],
     [ 'filter-xs=s',   'xs file filter',         { default => 'all' } ],
     [ 'jobs=i',    'number of parallel jobs', { default => 0 } ],
-    [ 'verbose:+', 'verbose+', ],
+    [ 'verbose:+', 'verbose+', { default => 0 } ],
 );
 
 if ( !$opt->cpan && $use_CPAN_Mini ) {
@@ -52,39 +52,29 @@ if ( !$opt->cpan && $use_CPAN_Mini ) {
 die( "must specify --cpan\n" )
   unless defined $opt->cpan;
 
-my $dbh_s = DBI->connect(
-    "dbi:SQLite:dbname=@{[ $opt->db ]}",
-    {
-        RaiseError          => 1,
-        AutoInactiveDestroy => 1,
-        AutoCommit          => 1,
-    } );
+my $dbh_s = db_connect( $opt->db, trace => $opt->dbtrace );
 
-$dbh_s->trace( $opt->dbtrace );
-
-my $dbh_u = $dbh_s->clone( {
-    RaiseError          => 1,
-    AutoCommit          => 1,
-    AutoInactiveDestroy => 1,
-} );
+my $dbh_u = db_clone( $dbh_s );
 
 $dbh_u->do(
     q[create table
   if not exists
-  pass (distribution text, path text, passed boolean)
+  pass (autharchive text, path text, passed boolean)
 ] );
 
 
 my $distributions = fetch_distributions( $dbh_s );
 
+say "Distributions: \n", join( "\n  ", @$distributions )
+    if $opt->verbose >= 3;
 
 my $visitor = CPAN::Visitor->new(
     cpan  => $opt->cpan,
     files => $distributions
 );
 
-my $select = $dbh_s->prepare( filter( $opt->filter_xs, 'xs' ) );
-
+my $select = $dbh_s->prepare( filter( $opt->filter_xs, 'xs' ) )
+    or die;
 
 $visitor->iterate(
     check => \&check_dist,
@@ -205,29 +195,29 @@ sub process_dist {
 
 sub update_parse_results {
 
-    my ( $dbh_u, $distribution, $path, $success ) = @_;
+    my ( $dbh_u, $autharchive, $path, $success ) = @_;
 
     state $update = $dbh_u->prepare(
         q[
 update pass
    set passed = ?
- where distribution = ?
+ where autharchive = ?
    and path = ?
 ] );
 
     state $insert = $dbh_u->prepare(
         q[
 insert into pass
-       (  passed, distribution, path )
+       (  passed, autharchive, path )
 values ( ?, ?, ?)
 ] );
 
-    if ( 0 == $update->execute( $success, $distribution, $path ) ) {
+    if ( 0 == $update->execute( $success, $autharchive, $path ) ) {
 
-        if ( 0 == $insert->execute( $success, $distribution, $path ) ) {
+        if ( 0 == $insert->execute( $success, $autharchive, $path ) ) {
 
             croak(
-                "error updating status for $distribution:$path = $success\n" );
+                "error updating status for $autharchive:$path = $success\n" );
         }
 
     }

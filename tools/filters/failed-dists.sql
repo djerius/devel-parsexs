@@ -1,3 +1,4 @@
-    select distinct distribution
-    from pass
-    where not passed;
+select distinct autharchive
+  from pass
+ where passed is not null
+   and not passed;

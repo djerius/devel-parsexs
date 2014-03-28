@@ -4,6 +4,8 @@ use latest;
 
 use DDP;
 
+use FindBin qw( $Bin );
+use lib "$Bin";
 use Data::Record::Serialize;
 
 use DBI;
@@ -14,6 +16,8 @@ use JSON::PP qw[encode_json];
 use IO::All;
 
 use Getopt::Long::Descriptive;
+
+use utils;
 
 my ( $opt, $usage ) = describe_options(
 
@@ -78,7 +82,7 @@ sub _cmd::xs {
 
 sub _cmd::archive {
 
-    my $dbh = db_connect();
+    my $dbh = db_connect( $opt->db );
 
     my @dists = map { @$_ }
       @{ $dbh->selectall_arrayref( 'select distinct distribution from xs' ) };
@@ -141,7 +145,7 @@ sub _cmd::archive {
 
 sub _cmd::merge {
 
-    my $dbh = db_connect();
+    my $dbh = db_connect( $opt->db );
 
     $dbh->do( q[ drop table files ] );
 
@@ -176,7 +180,7 @@ select xs.*, archive.archive, archive.version as archive_version
 
 sub _cmd::check_merge {
 
-    my $dbh = db_connect();
+    my $dbh = db_connect( $opt->db );
 
     my $missing = _bad_merges( $dbh );
 
@@ -202,7 +206,7 @@ update archive
 
 sub _cmd::fix_merge {
 
-    my $dbh = db_connect();
+    my $dbh = db_connect( $opt->db );
 
     my $missing = _bad_merges( $dbh );
 
@@ -284,13 +288,3 @@ sub fetch {
 
 }
 
-sub db_connect {
-
-    return DBI->connect(
-        "dbi:SQLite:dbname=@{[ $opt->db ]}",
-        {
-            RaiseError => 1,
-            AutoCommit => 1,
-        } );
-
-}

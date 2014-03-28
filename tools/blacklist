@@ -1,0 +1,198 @@
+#!/usr/bin/env perl
+
+use latest;
+use DBI;
+
+use Getopt::Long::Descriptive;
+
+use FindBin qw( $Bin );
+use lib "$Bin";
+use Path::Tiny;
+use utils;
+
+my ( $opt, $usage ) = describe_options(
+    "$0 %o",
+    [
+        'db=s', "sqlite db", { default => path( $Bin )->child( 'metacpan.db' ) }
+    ],
+    [ 'dist=s',    'dist to blacklist', ],
+    [ 'release=s', 'release to blacklist', ],
+    [ 'autharchive=s', 'autharchive to blacklist', ],
+    [ 'reset',     'reset blacklist status' ],
+    [ 'file=s@',   'file to blacklist [+]', { default => [] } ],
+    [ 'verbose:+', 'verbose+', ],
+);
+
+die( "specify one of --dist or --release\n" )
+  if 1 != grep { defined } $opt->dist, $opt->release, $opt->autharchive;
+
+my $dbh = db_connect( $opt->db );
+
+# if only dist or release blacklist all of it, including all files
+if ( !@{ $opt->file } ) {
+
+    my $column;
+    my $wanted;
+
+    if ( $opt->dist ) {
+        $column = 'distribution';
+        $wanted = $opt->dist;
+    }
+
+    elsif ( $opt->release ) {
+        $column = 'release';
+        $wanted = $opt->release;
+    }
+
+    elsif ( $opt->autharchive ) {
+        $column = 'autharchive';
+        $wanted = $opt->autharchive;
+    }
+
+    my $rows
+      = $dbh->selectall_arrayref(
+        filter( qw[ path autharchive from ], $column ),
+        {}, $wanted );
+
+    die( "no such $column: $wanted\n" )
+      unless @$rows;
+
+    if ( $opt->reset ) {
+        reset_autharchive( $dbh, $rows->[0][1] );
+        reset_files( $dbh, $rows );
+    }
+
+    else {
+        blacklist_autharchive( $dbh, $rows->[0][1] );
+        blacklist_files( $dbh, $rows );
+    }
+
+}
+
+sub blacklist_autharchive {
+
+    my ( $dbh, $autharchive ) = @_;
+
+    my $nrows = $dbh->do(
+        q[
+	      update pass
+		 set passed = null
+               where path is null
+               and   autharchive = ?;
+	     ],
+        {}, $autharchive
+    );
+
+    if ( 0 == $nrows ) {
+
+        my $nrows = $dbh->do(
+            q[
+		   insert
+		     into pass  (passed, path, autharchive)
+		     values     (null, null, ? )
+		   ],
+            {}, $autharchive
+        );
+
+        warn( "error blacklisting autharchive: $autharchive\n" )
+          unless $nrows;
+    }
+}
+
+sub reset_autharchive {
+
+    my ( $dbh, $autharchive ) = @_;
+
+    my $nrows = $dbh->do(
+        q[
+	  delete from pass
+	  where path is null
+         ],
+        {}, $autharchive
+    );
+}
+
+
+sub blacklist_files {
+
+    my ( $dbh, $rows ) = @_;
+
+    my $sth = $dbh->prepare(
+        q[
+	      update pass
+		 set passed = null
+	       where path = ?
+		 and autharchive = ?;
+	     ]
+    );
+
+    $rows = execute_array( $sth, $rows );
+
+    if ( @$rows ) {
+
+        my $sth = $dbh->prepare(
+            q[
+		   insert
+		     into pass  (passed, path, autharchive)
+		     values     (null, ?, ? )
+		   ]
+        );
+
+        my $rows = execute_array( $sth, $rows );
+
+        if ( @$rows ) {
+
+            warn(
+                "error blacklisting the following:\n",
+                map { join( '/', reverse @{$_} ) } @$rows
+            );
+        }
+    }
+
+}
+
+sub reset_files {
+
+    my ( $dbh, $rows ) = @_;
+
+    my $sth = $dbh->prepare(
+        q[
+	      delete from pass
+	       where path = ?
+		 and autharchive = ?;
+	     ]
+    );
+
+    execute_array( $sth, $rows );
+
+}
+
+sub execute_array {
+
+    my ( $sth, $rows ) = @_;
+
+    my $idx = 0;
+    my @status;
+    my $tuples = $sth->execute_array( {
+            ArrayTupleFetch => sub {
+                my $row;
+                # skip over undefined slots in $row
+                $row = $rows->[ $idx++ ] while !defined $row && $idx < @$rows;
+                return $row;
+            },
+            ArrayTupleStatus => \@status,
+        } );
+
+    if ( defined wantarray() ) {
+        # assume errors are due to non-existing rows in database
+        # delete entries in $rows of successful updates
+        my @rows;
+        push @rows, $rows->[$_]
+          foreach grep { ref $status[$_] || $status[$_] == 0 } 0 .. $#{$rows};
+
+
+        return \@rows;
+    }
+
+    return;
+}

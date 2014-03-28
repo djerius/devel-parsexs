@@ -1,4 +1,4 @@
-    select distinct autharchive
+    select path
     from files
     where distribution = ?
 ;
