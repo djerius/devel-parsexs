@@ -35,6 +35,7 @@ my ( $opt, $usage ) = describe_options(
     [ 'db=s',          "sqlite db",              { default => 'metacpan.db' } ],
     [ 'dbtrace=i',     'dbi trace level',        { default => 0 } ],
     [ 'dist=s@',       'specific dists to test', { default => [] } ],
+    [ 'look',          'run a shell inside the distributions', ],
     [ 'filter-dist=s', 'distribution filter', ],
     [ 'filter-xs=s',   'xs file filter',         { default => 'all' } ],
     [ 'jobs=i',    'number of parallel jobs', { default => 0 } ],
@@ -165,6 +166,9 @@ sub process_dist {
     my $res
       = $dbh_s->selectall_arrayref( $select, {},
         ( $job->{distfile} ) x $select->{NUM_OF_PARAMS} );
+
+    system( 'bash' )
+	if $opt->look;
 
     my @xs = map { @$_ } @$res;
 
