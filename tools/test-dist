@@ -10,12 +10,14 @@ use DDP;
 use Path::Tiny;
 use Getopt::Long::Descriptive;
 use Try::Tiny;
-use IO::All;
 
 use File::pushd;
 
 use FindBin qw( $Bin );
+use lib "$Bin";
 use lib "$Bin/../lib";
+
+use utils;
 
 use Devel::ParseXS;
 
@@ -225,15 +227,6 @@ values ( ?, ?, ?)
         }
 
     }
-}
-
-sub filter {
-
-    my $file = path( 'filters' )->child( join( '-', @_ ) . '.sql' );
-
-    my $sql = io( $file )->slurp;
-    $sql =~ s/;\s*$//;
-    return $sql;
 }
 
 
