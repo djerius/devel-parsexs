@@ -15,11 +15,12 @@ my ( $opt, $usage ) = describe_options(
     [
         'db=s', "sqlite db", { default => path( $Bin )->child( 'metacpan.db' ) }
     ],
-    [ 'dist=s',    'dist to blacklist', ],
-    [ 'release=s', 'release to blacklist', ],
+    [ 'dist=s',        'dist to blacklist', ],
+    [ 'release=s',     'release to blacklist', ],
     [ 'autharchive=s', 'autharchive to blacklist', ],
-    [ 'reset',     'reset blacklist status' ],
-    [ 'file=s@',   'file to blacklist [+]', { default => [] } ],
+    [ 'reset',         'reset blacklist status' ],
+    [ 'exclude=s@',    'exclude files from blacklist' ],
+    [ 'file=s@',   'file to blacklist [+]' ],
     [ 'verbose:+', 'verbose+', ],
 );
 
@@ -28,8 +29,156 @@ die( "specify one of --dist or --release\n" )
 
 my $dbh = db_connect( $opt->db );
 
-# if only dist or release blacklist all of it, including all files
-if ( !@{ $opt->file } ) {
+my ( $files, $wanted )  = get_associated_files( $dbh );
+
+if ( $opt->file ) {
+
+    # ensure that the requested files are associated with
+    # the given dist/archive
+    my %files;
+    @files{ @{ $opt->file } } = ( 1 ) x @{ $opt->file };
+
+    my @files = grep { $files{ $_->[0] }
+			   and delete $files{ $_->[0] }, 1 } @$files;
+    $files = \@files;
+
+    die( "these files aren't part of $wanted:\n",
+        join( "\n", sort keys %files ), "\n" )
+      if %files;
+
+    if ( $opt->reset ) {
+        reset_files( $dbh, $files );
+    }
+
+    else {
+        blacklist_files( $dbh, $files );
+    }
+
+}
+else {
+
+    if ( $opt->reset ) {
+
+        reset_autharchive( $dbh, $files->[0][1] )
+	    unless $opt->exclude;
+
+        reset_files( $dbh, $files );
+    }
+
+    else {
+        blacklist_autharchive( $dbh, $files->[0][1] )
+	    unless $opt->exclude;
+
+        blacklist_files( $dbh, $files );
+    }
+
+}
+
+sub blacklist_autharchive {
+
+    my ( $dbh, $autharchive ) = @_;
+
+    my $nfiles = $dbh->do(
+        q[
+	  update pass
+	     set passed = null
+	   where path is null
+	   and   autharchive = ?;
+	 ],
+        {}, $autharchive
+    );
+
+    if ( 0 == $nfiles ) {
+
+        my $nfiles = $dbh->do(
+            q[
+		   insert
+		     into pass  (passed, path, autharchive)
+		     values     (null, null, ? )
+		   ],
+            {}, $autharchive
+        );
+
+        warn( "error blacklisting autharchive: $autharchive\n" )
+          unless $nfiles;
+    }
+}
+
+sub reset_autharchive {
+
+    my ( $dbh, $autharchive ) = @_;
+
+    my $nfiles = $dbh->do(
+        q[
+	  delete from pass
+	  where path is null
+         ],
+        {}, $autharchive
+    );
+}
+
+
+sub blacklist_files {
+
+    my ( $dbh, $files ) = @_;
+
+    $files = exclude_files( $files );
+
+    my $sth = $dbh->prepare(
+        q[
+	      update pass
+		 set passed = null
+	       where path = ?
+		 and autharchive = ?;
+	     ]
+    );
+
+    $files = execute_array( $sth, $files );
+
+    if ( @$files ) {
+
+        my $sth = $dbh->prepare(
+            q[
+		   insert
+		     into pass  (passed, path, autharchive)
+		     values     (null, ?, ? )
+		   ]
+        );
+
+        my $files = execute_array( $sth, $files );
+
+        if ( @$files ) {
+
+            warn(
+                "error blacklisting the following:\n",
+                map { join( '/', reverse @{$_} ) } @$files
+            );
+        }
+    }
+
+}
+
+sub reset_files {
+
+    my ( $dbh, $files ) = @_;
+
+    $files = exclude_files( $files );
+
+    my $sth = $dbh->prepare(
+        q[
+	      delete from pass
+	       where path = ?
+		 and autharchive = ?;
+	     ]
+    );
+
+    execute_array( $sth, $files );
+
+}
+
+sub get_associated_files {
+
+    my ( $dbh ) = shift;
 
     my $column;
     my $wanted;
@@ -49,149 +198,60 @@ if ( !@{ $opt->file } ) {
         $wanted = $opt->autharchive;
     }
 
-    my $rows
+    my $files
       = $dbh->selectall_arrayref(
         filter( qw[ path autharchive from ], $column ),
         {}, $wanted );
 
     die( "no such $column: $wanted\n" )
-      unless @$rows;
+      unless @$files;
 
-    if ( $opt->reset ) {
-        reset_autharchive( $dbh, $rows->[0][1] );
-        reset_files( $dbh, $rows );
-    }
-
-    else {
-        blacklist_autharchive( $dbh, $rows->[0][1] );
-        blacklist_files( $dbh, $rows );
-    }
-
+    return ( $files, $wanted );
 }
 
-sub blacklist_autharchive {
+sub exclude_files {
 
-    my ( $dbh, $autharchive ) = @_;
+    my $files = shift;
 
-    my $nrows = $dbh->do(
-        q[
-	      update pass
-		 set passed = null
-               where path is null
-               and   autharchive = ?;
-	     ],
-        {}, $autharchive
-    );
+    if ( $opt->exclude ) {
 
-    if ( 0 == $nrows ) {
+        my %exclude;
+        @exclude{ @{ $opt->exclude } } = ( 1 ) x @{ $opt->exclude };
 
-        my $nrows = $dbh->do(
-            q[
-		   insert
-		     into pass  (passed, path, autharchive)
-		     values     (null, null, ? )
-		   ],
-            {}, $autharchive
-        );
-
-        warn( "error blacklisting autharchive: $autharchive\n" )
-          unless $nrows;
-    }
-}
-
-sub reset_autharchive {
-
-    my ( $dbh, $autharchive ) = @_;
-
-    my $nrows = $dbh->do(
-        q[
-	  delete from pass
-	  where path is null
-         ],
-        {}, $autharchive
-    );
-}
-
-
-sub blacklist_files {
-
-    my ( $dbh, $rows ) = @_;
-
-    my $sth = $dbh->prepare(
-        q[
-	      update pass
-		 set passed = null
-	       where path = ?
-		 and autharchive = ?;
-	     ]
-    );
-
-    $rows = execute_array( $sth, $rows );
-
-    if ( @$rows ) {
-
-        my $sth = $dbh->prepare(
-            q[
-		   insert
-		     into pass  (passed, path, autharchive)
-		     values     (null, ?, ? )
-		   ]
-        );
-
-        my $rows = execute_array( $sth, $rows );
-
-        if ( @$rows ) {
-
-            warn(
-                "error blacklisting the following:\n",
-                map { join( '/', reverse @{$_} ) } @$rows
-            );
-        }
+        my @files = grep { !$exclude{ $_->[0] } } @$files;
+        $files = \@files;
     }
 
-}
-
-sub reset_files {
-
-    my ( $dbh, $rows ) = @_;
-
-    my $sth = $dbh->prepare(
-        q[
-	      delete from pass
-	       where path = ?
-		 and autharchive = ?;
-	     ]
-    );
-
-    execute_array( $sth, $rows );
+    return $files;
 
 }
 
 sub execute_array {
 
-    my ( $sth, $rows ) = @_;
+    my ( $sth, $files ) = @_;
 
     my $idx = 0;
     my @status;
     my $tuples = $sth->execute_array( {
             ArrayTupleFetch => sub {
-                my $row;
-                # skip over undefined slots in $row
-                $row = $rows->[ $idx++ ] while !defined $row && $idx < @$rows;
-                return $row;
+                my $file;
+                # skip over undefined slots in $file
+                $file = $files->[ $idx++ ]
+		    while !defined $file && $idx < @$files;
+                return $file;
             },
             ArrayTupleStatus => \@status,
         } );
 
     if ( defined wantarray() ) {
-        # assume errors are due to non-existing rows in database
-        # delete entries in $rows of successful updates
-        my @rows;
-        push @rows, $rows->[$_]
-          foreach grep { ref $status[$_] || $status[$_] == 0 } 0 .. $#{$rows};
+        # assume errors are due to non-existing files in database
+        # delete entries in $files of successful updates
+        my @files;
+        push @files, $files->[$_]
+          foreach grep { ref $status[$_] || $status[$_] == 0 } 0 .. $#{$files};
 
 
-        return \@rows;
+        return \@files;
     }
 
     return;
