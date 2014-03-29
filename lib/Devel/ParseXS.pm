@@ -794,6 +794,15 @@ sub handle_BOOT {
     return 1;
 }
 
+sub handle_INCLUDE {
+
+    my ( $self, $arg ) = @_;
+
+    $self->fh->open( $arg );
+
+    return 1;
+}
+
 sub handle_TYPEMAP {
 
     my ( $self, $arg ) = @_;
