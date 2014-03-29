@@ -36,6 +36,7 @@ my ( $opt, $usage ) = describe_options(
     [ 'dbtrace=i',     'dbi trace level',        { default => 0 } ],
     [ 'dist=s@',       'specific dists to test', { default => [] } ],
     [ 'look',          'run a shell inside the distributions', ],
+    [ 'look-fail',     'run a shell inside the distributions upon failure', ],
     [ 'filter-dist=s', 'distribution filter', ],
     [ 'filter-xs=s',   'xs file filter',         { default => 'all' } ],
     [ 'jobs=i',    'number of parallel jobs', { default => 0 } ],
@@ -157,11 +158,9 @@ sub process_dist {
       = $dbh_s->selectall_arrayref( $select, {},
         ( $job->{distfile} ) x $select->{NUM_OF_PARAMS} );
 
-    system( 'bash' )
-	if $opt->look;
-
     my @xs = map { @$_ } @$res;
 
+    my $all_success = 1;
     for my $xs ( @xs ) {
 
         my $parser = Devel::ParseXS->new;
@@ -183,12 +182,17 @@ sub process_dist {
         catch {
             say ' ... fail:'
               if $opt->verbose > 1;
+	    $all_success = 0;
 
             say STDERR "$job->{distfile}/$xs: $_";
         };
 
         update_parse_results( $dbh_u, $job->{distfile}, $path, $success );
     }
+
+    system( 'bash' )
+	if $opt->look || ( $opt->look_fail && ! $all_success );
+
 
     return 1;
 }
